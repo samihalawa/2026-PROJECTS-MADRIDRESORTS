@@ -94,12 +94,12 @@ Why this is stronger:
 
 | Candidate | Surface | Evidence From Current Context | Verdict |
 |---|---|---|---|
-| `mvanhorn/printing-press-library` `facebook-marketplace` | Marketplace seller ops: search, listing create, photo upload, inbox, replies, watches, MCP/CLI | Described as a write-gated Marketplace seller CLI/MCP/skill. Commands include `auth login --chrome`, `doctor`, `inbox seller_threads`, `inbox message_seller`, `listing create`, `listing delete`, `marketplace search`, `reply`. GitHub evidence in current thread: 1,539 stars, pushed 2026-06-14. | Primary Marketplace automation choice. |
+| `mvanhorn/printing-press-library` `facebook-marketplace` | Marketplace seller ops: search, listing create, photo upload, inbox, replies, watches, MCP/CLI | Fresh GitHub README describes it as a write-gated Marketplace seller CLI for search, listing creation, photo upload, local watches, and replies. Commands include `auth login --chrome`, `doctor`, `inbox seller_threads`, `inbox message_seller`, `listing create`, `listing delete`, `marketplace search`, `reply`; the refreshed GitHub page showed about 1.3k stars. | Primary Marketplace automation choice. |
 | `m008v/fbchat-v2` | Personal Messenger / E2EE user chat | Current-thread evidence: active 2026 repo/PyPI, Python library, E2EE bridge using Go code and `mautrix-meta`, supports send/read/listen and Facebook feature modules including Marketplace-related code. | Best practical first prototype for personal Messenger. |
-| `mautrix/meta` `pkg/messagix` | Deep Meta messaging protocol layer | ChatGPT/Claude/current context: Matrix-Facebook/Instagram bridge with maintained internal Go package covering cookies, GraphQL, sockets, Messenger Lite, Facebook, Instagram, E2EE, threads, topics; Marketplace constants and support for marketplace chats. | Strongest deep foundation, but not the easiest standalone product. |
+| `mautrix/meta` `pkg/messagix` | Deep Meta messaging protocol layer | Fresh GitHub page describes `mautrix/meta` as a Matrix-Facebook Messenger and Instagram DM puppeting bridge and exposes `pkg/messagix` with cookies, GraphQL, DGW, Lightspeed, methods, socket, types, and related protocol folders. | Strongest deep foundation, but not the easiest standalone product. |
 | `0xzer/messagix` | Standalone Go protocol reference | ChatGPT context: closest clean standalone Gowa-like library but smaller and riskier. | Useful fallback/reference, not first choice. |
-| `jlsookiki/secondhand-mcp` | Read-only Marketplace/eBay/Depop/Poshmark search | Current-thread evidence: MCP, npm package, Facebook Marketplace search/details without auth, direct GraphQL/doc IDs. | Good read-only search/monitor layer. |
-| `jdcodes1/facebook-marketplace-mcp` | Read-only Facebook Marketplace search/monitor | Current-thread evidence: MCP server, direct GraphQL, Chrome session cookies from macOS Keychain, tools for search/listing/monitors. | Useful for read-only MCP on macOS; not write/message layer. |
+| `jlsookiki/secondhand-mcp` | Read-only Marketplace/eBay/Depop/Poshmark search | Fresh GitHub README describes an MCP server for searching secondhand marketplaces, including Facebook Marketplace, and says Facebook Marketplace does not require auth for location-based search. | Good read-only search/monitor layer. |
+| `jdcodes1/facebook-marketplace-mcp` | Read-only Facebook Marketplace search/monitor | Fresh GitHub README describes direct `/api/graphql/` replay using existing Facebook session cookies from Chrome, with tools for search, listing, and monitors; it explicitly says there are no write operations. | Useful for read-only MCP on macOS; not write/message layer. |
 | `BoPeng/ai-marketplace-monitor` | Marketplace monitoring/search and AI notifications | Current-thread evidence: mature monitor/search, Playwright/browser-based, PyPI. | Useful monitoring product, not Gowa-like message/listing gateway. |
 | `GeorgiKeranov/facebook-marketplace-bot` | Marketplace listing reposting via Selenium | Notion context: 216 stars, saves/reuses cookies after first login, CSV bulk listings. | Useful example, not best primary due fragility/GPL/Selenium. |
 | `HARON416/Facebook-Marketplace-Auto-Poster` / `Auto-Reply` | Marketplace browser automation examples | Notion/current context: uses existing Chrome session, posting or auto-reply examples. | Examples only; too narrow/small as foundation. |
@@ -161,6 +161,7 @@ Searched / compared:
 - Current ChatGPT appshot and visible ChatGPT thread text.
 - Current conversation summaries and prior Codex findings in this thread.
 - GitHub/package-search findings summarized in the current thread for all named repositories.
+- Fresh GitHub/web source checks for `printing-press-library`, `fbchat-v2`, `mautrix/meta`, `messagix`, `secondhand-mcp`, and `facebook-marketplace-mcp`.
 
 Useful:
 
@@ -184,4 +185,3 @@ Missing:
 - The actual Zimo Qiu `facebook.com` Cookie-Editor JSON.
 - Current live Chrome visual proof of the Zimo Qiu session.
 - Current installed/run proof for `printing-press-library`, `fbchat-v2`, or `messagix`.
-

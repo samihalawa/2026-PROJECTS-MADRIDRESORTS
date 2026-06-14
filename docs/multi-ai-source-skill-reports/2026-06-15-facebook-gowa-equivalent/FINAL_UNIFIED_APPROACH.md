@@ -31,6 +31,8 @@ There is no single clean Facebook equivalent to Gowa for every personal Facebook
 
 The biggest correction to earlier AI answers: Marketplace listing creation, seller inbox, replies, and write-gated seller flows are not "browser-only" because `mvanhorn/printing-press-library/library/commerce/facebook-marketplace` already exposes a focused CLI/MCP/skill surface for those workflows.
 
+Fresh source check: the GitHub README for `mvanhorn/printing-press-library/library/commerce/facebook-marketplace` describes it as "A write-gated Marketplace seller CLI for search, listing creation, photo upload, local watches, and replies." It also documents the `npx -y @mvanhorn/printing-press-library install facebook-marketplace`, `auth login --chrome`, and `doctor` flow.
+
 ## Build Order
 
 1. Install the Marketplace-specific package first:
@@ -133,6 +135,15 @@ The highest-leverage next action is not another generic repo search. It is:
 - I have not accessed the live Chrome session in this run, so I cannot claim current Zimo Qiu login, current cookie validity, successful install, or live message/listing proof.
 - This report is a source-comparison and implementation decision artifact; live execution remains blocked on access to the current authenticated browser/profile or the real exported Facebook cookie JSON.
 
+## External Sources Refreshed
+
+- `mvanhorn/printing-press-library` Facebook Marketplace README: https://github.com/mvanhorn/printing-press-library/tree/main/library/commerce/facebook-marketplace
+- `m008v/fbchat-v2`: https://github.com/m008v/fbchat-v2
+- `mautrix/meta`: https://github.com/mautrix/meta
+- `mautrix/meta/pkg/messagix`: https://github.com/mautrix/meta/tree/main/pkg/messagix
+- `jdcodes1/facebook-marketplace-mcp`: https://github.com/jdcodes1/facebook-marketplace-mcp
+- `jlsookiki/secondhand-mcp`: https://github.com/jlsookiki/secondhand-mcp
+
 ## Red-Team Check
 
 Likely failure points:
@@ -156,4 +167,3 @@ Marketplace read-only:   secondhand-mcp or facebook-marketplace-mcp
 UI fallback/proof:       browser-use, midscene, stagehand
 Rejected as primary:     official Meta APIs, legacy fca/fbchat, random Selenium-only repos
 ```
-
