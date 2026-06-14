@@ -1,0 +1,13 @@
+{
+  "name": "facebook-marketplace-seller-manager",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node src/main.js"
+  },
+  "dependencies": {
+    "apify": "^3.4.0"
+  }
+}
+

@@ -1,0 +1,159 @@
+{
+  "actorSpecification": 1,
+  "title": "Facebook Marketplace Seller Manager dataset",
+  "views": {
+    "overview": {
+      "title": "Overview",
+      "transformation": {
+        "fields": [
+          "mode",
+          "resultType",
+          "status",
+          "buyerIntent",
+          "recommendedAction",
+          "priority",
+          "buyerName",
+          "listingTitle",
+          "lastMessage",
+          "replyDraft",
+          "reason"
+        ]
+      }
+    },
+    "conversationInventory": {
+      "title": "Conversation inventory",
+      "transformation": {
+        "fields": [
+          "mode",
+          "resultType",
+          "threadId",
+          "buyerName",
+          "listingTitle",
+          "buyerIntent",
+          "status",
+          "lastMessage",
+          "recommendedAction",
+          "priority",
+          "reason"
+        ]
+      }
+    },
+    "sessionAudit": {
+      "title": "Session audit",
+      "transformation": {
+        "fields": [
+          "mode",
+          "resultType",
+          "hasRequiredCookies",
+          "presentCookies",
+          "missingCookies",
+          "recommendedAction"
+        ]
+      }
+    }
+  },
+  "fields": {
+    "mode": {
+      "type": "string",
+      "title": "Mode",
+      "description": "The workflow mode used for the run.",
+      "example": "build_reply_queue"
+    },
+    "resultType": {
+      "type": "string",
+      "title": "Result type",
+      "description": "The type of management result row.",
+      "example": "reply_queue_item"
+    },
+    "threadId": {
+      "type": "string",
+      "title": "Thread ID",
+      "description": "The source buyer thread identifier when present.",
+      "example": "thread-1"
+    },
+    "listingId": {
+      "type": "string",
+      "title": "Listing ID",
+      "description": "The source listing identifier when present.",
+      "example": "listing-1"
+    },
+    "buyerName": {
+      "type": "string",
+      "title": "Buyer name",
+      "description": "Buyer or prospect name.",
+      "example": "Ana"
+    },
+    "listingTitle": {
+      "type": "string",
+      "title": "Listing title",
+      "description": "The listing related to the management action.",
+      "example": "iPhone 15 Pro 128GB"
+    },
+    "buyerIntent": {
+      "type": "string",
+      "title": "Buyer intent",
+      "description": "Normalized buyer intent inferred from the last message or provided by input.",
+      "example": "availability"
+    },
+    "status": {
+      "type": "string",
+      "title": "Thread or listing status",
+      "description": "The current workflow status for the conversation or listing row.",
+      "example": "new"
+    },
+    "lastMessage": {
+      "type": "string",
+      "title": "Last message",
+      "description": "Last buyer message used for inventory and reply decisions.",
+      "example": "Hola, sigue disponible?"
+    },
+    "recommendedAction": {
+      "type": "string",
+      "title": "Recommended action",
+      "description": "The primary suggested management action.",
+      "example": "reply_now"
+    },
+    "priority": {
+      "type": "string",
+      "title": "Priority",
+      "description": "Priority assigned to the management row.",
+      "example": "high"
+    },
+    "replyDraft": {
+      "type": "string",
+      "title": "Reply draft",
+      "description": "Suggested seller reply text when generated.",
+      "example": "Hola Ana, sigue disponible..."
+    },
+    "reason": {
+      "type": "string",
+      "title": "Reason",
+      "description": "Short explanation for the recommended action.",
+      "example": "Fresh buyer message with availability intent"
+    },
+    "hasRequiredCookies": {
+      "type": "boolean",
+      "title": "Has required cookies",
+      "description": "Whether the required Facebook cookies were present.",
+      "example": true
+    },
+    "presentCookies": {
+      "type": "array",
+      "title": "Present cookies",
+      "description": "Cookie names that were detected.",
+      "example": [
+        "c_user",
+        "xs",
+        "datr",
+        "sb",
+        "fr"
+      ]
+    },
+    "missingCookies": {
+      "type": "array",
+      "title": "Missing cookies",
+      "description": "Required cookie names that were not detected.",
+      "example": []
+    }
+  }
+}

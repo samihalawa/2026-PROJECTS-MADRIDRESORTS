@@ -1,0 +1,117 @@
+{
+  "title": "Facebook Marketplace Seller Manager input",
+  "type": "object",
+  "schemaVersion": 1,
+  "description": "Management-first workflow for Facebook Marketplace sellers. Default mode produces a non-empty reply queue without credentials. Authenticated inbox and listing execution should be added on top of this management layer, not replace it.",
+  "properties": {
+    "mode": {
+      "title": "Mode",
+      "type": "string",
+      "description": "Choose the workflow you want to run.",
+      "editor": "select",
+      "default": "build_reply_queue",
+      "enum": [
+        "conversation_inventory",
+        "build_reply_queue",
+        "listing_ops_plan",
+        "session_audit"
+      ],
+      "enumTitles": [
+        "Build conversation inventory",
+        "Build reply queue",
+        "Build listing operations plan",
+        "Audit Facebook session cookies"
+      ]
+    },
+    "replyStyle": {
+      "title": "Reply style",
+      "type": "string",
+      "description": "Choose the default tone for generated seller replies.",
+      "editor": "select",
+      "default": "concise_friendly",
+      "enum": [
+        "concise_friendly",
+        "firm_fast_close",
+        "premium_trust_building"
+      ],
+      "enumTitles": [
+        "Concise friendly",
+        "Firm fast close",
+        "Premium trust building"
+      ]
+    },
+    "replyTemplate": {
+      "title": "Custom reply template",
+      "type": "string",
+      "description": "Optional custom template. Available placeholders: {{buyerName}}, {{listingTitle}}, {{price}}, {{city}}.",
+      "editor": "textarea",
+      "prefill": "Hola {{buyerName}}, sigue disponible {{listingTitle}}. Si te encaja, te confirmo entrega hoy."
+    },
+    "threads": {
+      "title": "Buyer threads",
+      "type": "array",
+      "description": "Buyer thread rows used to build a conversation inventory or reply queue. Use this in conversation_inventory or build_reply_queue mode.",
+      "editor": "json",
+      "prefill": [
+        {
+          "threadId": "thread-1",
+          "buyerName": "Ana",
+          "listingTitle": "iPhone 15 Pro 128GB",
+          "price": 699,
+          "city": "Madrid",
+          "lastMessage": "Hola, sigue disponible?",
+          "hoursSinceLastMessage": 1,
+          "buyerIntent": "availability",
+          "status": "new"
+        },
+        {
+          "threadId": "thread-2",
+          "buyerName": "Luis",
+          "listingTitle": "MacBook Air M2",
+          "price": 850,
+          "city": "Madrid",
+          "lastMessage": "Lo recogeria manana, me lo dejas en 780?",
+          "hoursSinceLastMessage": 14,
+          "buyerIntent": "negotiation",
+          "status": "needs_follow_up"
+        }
+      ]
+    },
+    "listings": {
+      "title": "Seller listings",
+      "type": "array",
+      "description": "Listing rows used to build an operations queue. Use this in listing_ops_plan mode.",
+      "editor": "json",
+      "prefill": [
+        {
+          "listingId": "listing-1",
+          "title": "iPhone 15 Pro 128GB",
+          "price": 699,
+          "daysLive": 9,
+          "favorites": 18,
+          "messages": 6,
+          "status": "active"
+        },
+        {
+          "listingId": "listing-2",
+          "title": "MacBook Air M2",
+          "price": 850,
+          "daysLive": 21,
+          "favorites": 4,
+          "messages": 0,
+          "status": "active"
+        }
+      ]
+    },
+    "cookiesJson": {
+      "title": "Facebook cookies JSON",
+      "type": "string",
+      "description": "Paste exported facebook.com cookies JSON from Cookie-Editor or a similar browser tool. Used only in session_audit mode.",
+      "editor": "textarea",
+      "sectionCaption": "Advanced authenticated workflows"
+    }
+  },
+  "required": [
+    "mode"
+  ]
+}

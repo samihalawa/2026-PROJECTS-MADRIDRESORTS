@@ -1,0 +1,25 @@
+{
+  "actorSpecification": 1,
+  "title": "Facebook Marketplace Seller Manager output",
+  "type": "object",
+  "properties": {
+    "mode": {
+      "type": "string",
+      "title": "Mode"
+    },
+    "summary": {
+      "type": "object",
+      "title": "Summary"
+    },
+    "resultCount": {
+      "type": "number",
+      "title": "Result count"
+    },
+    "defaultDatasetUrl": {
+      "type": "string",
+      "title": "Default dataset URL",
+      "template": "{{links.apiDefaultDatasetUrl}}/items"
+    }
+  }
+}
+
