@@ -8,12 +8,14 @@
         "fields": [
           "mode",
           "resultType",
+          "surface",
           "status",
           "buyerIntent",
           "recommendedAction",
           "priority",
           "buyerName",
           "listingTitle",
+          "daysSinceLastMessage",
           "lastMessage",
           "replyDraft",
           "reason"
@@ -27,13 +29,36 @@
           "mode",
           "resultType",
           "threadId",
+          "surface",
+          "threadUrl",
           "buyerName",
           "listingTitle",
           "buyerIntent",
           "status",
+          "lastMessageAt",
+          "daysSinceLastMessage",
           "lastMessage",
           "recommendedAction",
           "priority",
+          "reason"
+        ]
+      }
+    },
+    "followUpQueue": {
+      "title": "Follow-up queue",
+      "transformation": {
+        "fields": [
+          "mode",
+          "resultType",
+          "threadId",
+          "surface",
+          "buyerName",
+          "listingTitle",
+          "daysSinceLastMessage",
+          "followUpWindowReached",
+          "recommendedAction",
+          "priority",
+          "replyDraft",
           "reason"
         ]
       }
@@ -47,6 +72,7 @@
           "hasRequiredCookies",
           "presentCookies",
           "missingCookies",
+          "supportedWorkflows",
           "recommendedAction"
         ]
       }
@@ -70,6 +96,18 @@
       "title": "Thread ID",
       "description": "The source buyer thread identifier when present.",
       "example": "thread-1"
+    },
+    "surface": {
+      "type": "string",
+      "title": "Conversation surface",
+      "description": "The modeled inbox surface.",
+      "example": "marketplace_seller"
+    },
+    "threadUrl": {
+      "type": "string",
+      "title": "Thread URL",
+      "description": "Thread URL or stable deep link when known.",
+      "example": "https://www.facebook.com/messages/t/thread-1"
     },
     "listingId": {
       "type": "string",
@@ -101,11 +139,29 @@
       "description": "The current workflow status for the conversation or listing row.",
       "example": "new"
     },
+    "lastMessageAt": {
+      "type": "string",
+      "title": "Last message timestamp",
+      "description": "ISO timestamp for the last known message when available.",
+      "example": "2026-06-15T11:20:00Z"
+    },
+    "daysSinceLastMessage": {
+      "type": "number",
+      "title": "Days since last message",
+      "description": "Computed or supplied thread age in days.",
+      "example": 27
+    },
     "lastMessage": {
       "type": "string",
       "title": "Last message",
       "description": "Last buyer message used for inventory and reply decisions.",
       "example": "Hola, sigue disponible?"
+    },
+    "followUpWindowReached": {
+      "type": "boolean",
+      "title": "Follow-up window reached",
+      "description": "Whether the stale thread crossed the configured follow-up threshold.",
+      "example": true
     },
     "recommendedAction": {
       "type": "string",
@@ -154,6 +210,15 @@
       "title": "Missing cookies",
       "description": "Required cookie names that were not detected.",
       "example": []
+    },
+    "supportedWorkflows": {
+      "type": "array",
+      "title": "Supported workflows",
+      "description": "Workflows that the session artifact appears ready to back.",
+      "example": [
+        "browser_backed_marketplace_reply",
+        "browser_backed_inbox_review"
+      ]
     }
   }
 }

@@ -2,7 +2,7 @@
   "title": "Facebook Marketplace Seller Manager input",
   "type": "object",
   "schemaVersion": 1,
-  "description": "Management-first workflow for Facebook Marketplace sellers. Default mode produces a non-empty reply queue without credentials. Authenticated inbox and listing execution should be added on top of this management layer, not replace it.",
+  "description": "Marketplace-first management workflow for Facebook sellers. Default mode produces a non-empty reply queue without credentials. The product is intentionally not scrape-only: it models inbox operations, stale follow-ups, listing actions, and session-readiness for later browser-backed execution.",
   "properties": {
     "mode": {
       "title": "Mode",
@@ -13,12 +13,14 @@
       "enum": [
         "conversation_inventory",
         "build_reply_queue",
+        "build_follow_up_queue",
         "listing_ops_plan",
         "session_audit"
       ],
       "enumTitles": [
         "Build conversation inventory",
         "Build reply queue",
+        "Build stale follow-up queue",
         "Build listing operations plan",
         "Audit Facebook session cookies"
       ]
@@ -50,32 +52,47 @@
     "threads": {
       "title": "Buyer threads",
       "type": "array",
-      "description": "Buyer thread rows used to build a conversation inventory or reply queue. Use this in conversation_inventory or build_reply_queue mode.",
+      "description": "Conversation rows for Marketplace, direct Messenger, or group follow-up workflows. Use this in conversation_inventory, build_reply_queue, or build_follow_up_queue mode.",
       "editor": "json",
       "prefill": [
         {
           "threadId": "thread-1",
+          "surface": "marketplace_seller",
+          "threadUrl": "https://www.facebook.com/messages/t/thread-1",
           "buyerName": "Ana",
           "listingTitle": "iPhone 15 Pro 128GB",
           "price": 699,
           "city": "Madrid",
           "lastMessage": "Hola, sigue disponible?",
+          "lastMessageAt": "2026-06-15T11:20:00Z",
           "hoursSinceLastMessage": 1,
           "buyerIntent": "availability",
-          "status": "new"
+          "status": "new",
+          "unreadCount": 1
         },
         {
           "threadId": "thread-2",
+          "surface": "messenger_direct",
+          "threadUrl": "https://www.facebook.com/messages/e2ee/t/thread-2",
           "buyerName": "Luis",
           "listingTitle": "MacBook Air M2",
           "price": 850,
           "city": "Madrid",
-          "lastMessage": "Lo recogeria manana, me lo dejas en 780?",
-          "hoursSinceLastMessage": 14,
-          "buyerIntent": "negotiation",
-          "status": "needs_follow_up"
+          "lastMessage": "Hola Zimo, como te va el puente?",
+          "lastMessageAt": "2026-05-19T16:10:00Z",
+          "daysSinceLastMessage": 27,
+          "buyerIntent": "reactivation",
+          "status": "needs_follow_up",
+          "unreadCount": 0
         }
       ]
+    },
+    "followUpDaysThreshold": {
+      "title": "Follow-up threshold in days",
+      "type": "integer",
+      "description": "Threads older than this threshold become follow-up candidates in build_follow_up_queue mode.",
+      "default": 20,
+      "minimum": 1
     },
     "listings": {
       "title": "Seller listings",
@@ -106,7 +123,7 @@
     "cookiesJson": {
       "title": "Facebook cookies JSON",
       "type": "string",
-      "description": "Paste exported facebook.com cookies JSON from Cookie-Editor or a similar browser tool. Used only in session_audit mode.",
+      "description": "Paste exported facebook.com cookies JSON from Cookie-Editor or a similar browser tool. Used only in session_audit mode to validate whether a browser-backed seller workflow can be attached later.",
       "editor": "textarea",
       "sectionCaption": "Advanced authenticated workflows"
     }

@@ -1,13 +1,14 @@
 ## What does Facebook Marketplace Seller Manager do?
 
-Facebook Marketplace Seller Manager is a management-first Actor for sellers who need to audit session readiness, organize buyer conversations, draft replies, and prioritize listing actions across Marketplace. It is intentionally not a generic Facebook scraper and not a broad Facebook bundle.
+Facebook Marketplace Seller Manager is a Marketplace-first management Actor for sellers who need to audit session readiness, organize buyer conversations, build reply queues, reactivate stale threads, and prioritize listing actions. It is intentionally not a generic Facebook scraper and not a broad Facebook bundle.
 
-The current Apify Store is already crowded for general Facebook Groups scraping and Facebook Marketplace listing extraction. The stronger product angle is a seller workflow layer: inbox triage, reply drafting, listing operations planning, and later authenticated listing/inbox actions.
+The current Apify Store is already crowded for general Facebook Groups scraping and Facebook Marketplace listing extraction. The stronger product angle is a seller workflow layer: inbox triage, reply drafting, stale follow-ups, listing operations planning, and later authenticated inbox and listing actions.
 
 ## Why this Actor exists
 
 - Marketplace scraping is crowded. Seller management is the cleaner gap.
 - Sellers care about response speed, stale listings, lead handling, and repeatable workflows.
+- Seller inbox work is not just scraping. The durable value is deciding who to answer, who to follow up, and which listing needs action next.
 - "General Facebook management" is too broad for SEO and too messy for a first Store launch.
 - Apify's own bundle guidance says bundles are harder to market from search intent than a focused Actor.
 
@@ -17,7 +18,9 @@ This Actor should ship as a focused seller workflow tool:
 
 - Audit whether imported Facebook session cookies are management-ready.
 - Turn buyer conversations into a reply queue with structured actions.
+- Turn older conversations into follow-up campaigns once they cross a stale threshold.
 - Turn listing inventory into an operations queue: follow up, bump, archive, relist, mark sold.
+- Model both Marketplace seller threads and related Messenger follow-up lanes without turning the Store page into a generic Facebook bundle.
 - Keep public search/monitoring as a companion feature, not the core identity.
 
 ## Gowa-style architecture
@@ -29,6 +32,7 @@ Split the concept into separate tools:
 - `auth-session-audit`: validate whether exported Facebook session artifacts are usable.
 - `conversation-inventory`: normalize prior seller threads into structured rows.
 - `reply-queue-builder`: turn conversations into recommended replies and action queues.
+- `follow-up-campaign-builder`: select older threads and generate reactivation messages.
 - `listing-ops-worker`: decide which listings need refresh, repricing, archive, or sold-state handling.
 - `public-market-monitor`: optional companion tool for public Marketplace discovery and watchlists.
 
@@ -40,14 +44,44 @@ Public product strategy:
 
 Do not lead with groups, pages, ads, or broad Facebook automation in the first launch. Those are separate products with different demand and competition profiles.
 
+## Best final approach
+
+The best commercial approach is:
+
+1. Public Actor: `Facebook Marketplace Seller Manager`
+2. Internal architecture: Gowa-like module split
+3. Product promise: seller management, not scrape-only
+
+This gives you the cleanest search intent and the broadest useful workflow without making the first release vague.
+
+### Why this beats the alternatives
+
+| Approach | Verdict |
+|---|---|
+| Broad `facebook-manager` | Too wide, weak SEO, too many auth surfaces at once |
+| Scraper-only Marketplace Actor | Crowded, easy to copy, lower workflow value |
+| Messenger-only library product | Valuable internally, weaker Store positioning |
+| Marketplace-first seller manager | Best first commercial surface |
+
+### Relation to a Gowa equivalent
+
+Gowa is flexible because it offers a stable session-backed messaging core. The closest product strategy here is:
+
+- keep the public commercial page narrow;
+- keep the internal execution model session-backed and modular;
+- let later companion actors or internal workers handle adjacent surfaces.
+
+So the best equivalent is not "build one public Facebook Gowa clone first". It is "launch one focused commercial Marketplace manager that sits on top of a reusable inbox/session core."
+
 ## Current MVP in this repo
 
-This repo ships a runnable management MVP with four modes:
+This repo ships a runnable management MVP with five modes:
 
 1. `conversation_inventory`
 2. `build_reply_queue`
-3. `listing_ops_plan`
-4. `session_audit`
+3. `build_follow_up_queue`
+4. `listing_ops_plan`
+5. `session_audit`
 
 Default input uses `build_reply_queue` so the Actor succeeds without credentials and produces a non-empty dataset for Store QA.
 
@@ -63,8 +97,9 @@ Default input uses `build_reply_queue` so the Actor succeeds without credentials
 
 | Field | Type | Required | Description |
 |---|---|---:|---|
-| `mode` | enum | yes | `conversation_inventory`, `build_reply_queue`, `listing_ops_plan`, or `session_audit`. |
-| `threads` | array | for conversation or reply modes | Buyer thread rows with listing title, buyer name, last message, and status. |
+| `mode` | enum | yes | `conversation_inventory`, `build_reply_queue`, `build_follow_up_queue`, `listing_ops_plan`, or `session_audit`. |
+| `threads` | array | for conversation modes | Conversation rows with `surface`, `threadUrl`, listing title, buyer name, last message, age, and status. |
+| `followUpDaysThreshold` | integer | for follow-up mode | Age threshold used to select stale threads for reactivation. |
 | `listings` | array | for listing mode | Your active listing rows with title, price, age, favorites, and status. |
 | `replyStyle` | enum | no | Tone for generated reply drafts. |
 | `replyTemplate` | string | no | Optional custom reply pattern. |
@@ -98,12 +133,32 @@ The default dataset contains management rows instead of raw scrape rows.
   "mode": "build_reply_queue",
   "resultType": "reply_queue_item",
   "threadId": "thread-1",
+  "surface": "marketplace_seller",
   "buyerName": "Ana",
   "listingTitle": "iPhone 15 Pro 128GB",
   "recommendedAction": "reply_now",
   "priority": "high",
   "replyDraft": "Hola Ana, sigue disponible. Puedo entregarlo hoy en Madrid centro. Si quieres, te confirmo punto y hora.",
   "reason": "Fresh buyer message with availability intent"
+}
+```
+
+### Follow-up queue item example
+
+```json
+{
+  "mode": "build_follow_up_queue",
+  "resultType": "follow_up_queue_item",
+  "threadId": "thread-2",
+  "surface": "messenger_direct",
+  "buyerName": "Jp Hrez",
+  "listingTitle": "Habitacion Madrid",
+  "daysSinceLastMessage": 27,
+  "followUpWindowReached": true,
+  "recommendedAction": "send_follow_up",
+  "priority": "medium",
+  "replyDraft": "Hola Jp Hrez, reabro el hilo por si sigues interesado en Habitacion Madrid. Han pasado 27 dias desde el ultimo mensaje y te actualizo disponibilidad si te viene bien.",
+  "reason": "Thread is older than the configured 20-day follow-up threshold."
 }
 ```
 
@@ -115,7 +170,12 @@ The default dataset contains management rows instead of raw scrape rows.
   "resultType": "session_audit",
   "hasRequiredCookies": true,
   "missingCookies": [],
-  "presentCookies": ["c_user", "xs", "datr", "sb", "fr"],
+  "presentCookies": ["c_user", "xs", "datr", "sb", "fr", "presence", "wd"],
+  "supportedWorkflows": [
+    "browser_backed_marketplace_reply",
+    "browser_backed_inbox_review",
+    "browser_backed_listing_ops"
+  ],
   "recommendedAction": "session_ready_for_browser_worker"
 }
 ```
@@ -127,6 +187,7 @@ Recommended first monetization model: Pay per event.
 Suggested event design for the real commercial version:
 
 - `reply-queue-item` for each actionable buyer thread produced.
+- `follow-up-queue-item` for each stale thread selected for reactivation.
 - `listing-op-item` for each actionable listing decision produced.
 - `managed-thread-action` later, when authenticated reply execution ships.
 - `managed-listing-action` later, when authenticated listing updates ship.
@@ -140,6 +201,7 @@ Current Store reality:
 - General Facebook Groups scraping is dominated by Apify's own actor.
 - General Facebook Marketplace scraping is crowded and keyword-heavy.
 - Seller-side management is the cleaner gap because it solves a workflow, not just a data pull.
+- There is room between pure scraping and a full generic Facebook manager: Marketplace-first inbox operations.
 
 Primary keyword target:
 
@@ -149,6 +211,7 @@ Secondary keywords:
 
 - `facebook marketplace inbox automation`
 - `facebook marketplace reply automation`
+- `facebook marketplace follow up automation`
 - `facebook marketplace seller workflow`
 - `facebook marketplace listing manager`
 - `facebook marketplace seller assistant`
@@ -165,7 +228,7 @@ Phase 1:
 Phase 2:
 
 - Add authenticated browser worker modes for seller inbox and listing actions.
-- Import cookies, validate session, and execute selected replies or listing state changes.
+- Import cookies, validate session, and execute selected replies or listing state changes for authorized sessions.
 
 Phase 3:
 

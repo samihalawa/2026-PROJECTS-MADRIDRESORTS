@@ -2,7 +2,7 @@
   "actorSpecification": 1,
   "name": "facebook-marketplace-seller-manager",
   "title": "Facebook Marketplace Seller Manager",
-  "description": "Management-first Actor for Facebook Marketplace sellers. Build conversation inventory, create buyer reply queues, prioritize listing operations, and audit session readiness.",
+  "description": "Marketplace-first inbox and listing management Actor. Build reply queues, stale follow-up campaigns, listing action plans, and session-readiness audits for seller operations.",
   "version": "0.1",
   "buildTag": "latest",
   "input": "./input_schema.json",
