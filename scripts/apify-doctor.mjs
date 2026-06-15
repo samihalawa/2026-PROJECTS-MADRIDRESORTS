@@ -31,6 +31,13 @@ const builds = await api(`/acts/${actorFullName}/builds?limit=1&desc=1`);
 if (!builds.ok) throw new Error(`build list failed ${builds.status}: ${builds.text}`);
 
 const latestBuild = builds.json?.data?.items?.[0] || null;
+const latestBuildDetail = latestBuild
+    ? await api(`/actor-builds/${latestBuild.id}`)
+    : null;
+if (latestBuild && !latestBuildDetail?.ok) {
+    throw new Error(`build detail failed ${latestBuildDetail?.status}: ${latestBuildDetail?.text}`);
+}
+const latestBuildData = latestBuildDetail?.json?.data || latestBuild;
 
 console.log(JSON.stringify({
     actorFullName,
@@ -48,11 +55,11 @@ console.log(JSON.stringify({
         buildTag: version.json?.data?.buildTag,
     },
     latestBuild: latestBuild ? {
-        id: latestBuild.id,
-        number: latestBuild.buildNumber,
-        status: latestBuild.status,
-        startedAt: latestBuild.startedAt,
-        finishedAt: latestBuild.finishedAt,
-        gitCommitId: latestBuild.gitCommitId || null,
+        id: latestBuildData.id,
+        number: latestBuildData.buildNumber,
+        status: latestBuildData.status,
+        startedAt: latestBuildData.startedAt,
+        finishedAt: latestBuildData.finishedAt,
+        gitCommitId: latestBuildData.gitCommitId || null,
     } : null,
 }, null, 2));
