@@ -13,11 +13,13 @@
           "buyerIntent",
           "recommendedAction",
           "priority",
+          "dataOrigin",
           "buyerName",
           "listingTitle",
           "daysSinceLastMessage",
           "lastMessage",
           "replyDraft",
+          "sampleDataUsed",
           "reason"
         ]
       }
@@ -40,6 +42,8 @@
           "lastMessage",
           "recommendedAction",
           "priority",
+          "dataOrigin",
+          "sampleDataUsed",
           "reason"
         ]
       }
@@ -58,7 +62,9 @@
           "followUpWindowReached",
           "recommendedAction",
           "priority",
+          "dataOrigin",
           "replyDraft",
+          "sampleDataUsed",
           "reason"
         ]
       }
@@ -70,9 +76,13 @@
           "mode",
           "resultType",
           "hasRequiredCookies",
+          "authProofLevel",
           "presentCookies",
           "missingCookies",
           "supportedWorkflows",
+          "candidateWorkflows",
+          "workflowReadiness",
+          "sampleDataUsed",
           "recommendedAction"
         ]
       }
@@ -169,6 +179,12 @@
       "description": "The primary suggested management action.",
       "example": "reply_now"
     },
+    "dataOrigin": {
+      "type": "string",
+      "title": "Data origin",
+      "description": "Whether the row came from the provided input payload or the built-in sample fallback.",
+      "example": "input_payload"
+    },
     "priority": {
       "type": "string",
       "title": "Priority",
@@ -187,11 +203,23 @@
       "description": "Short explanation for the recommended action.",
       "example": "Fresh buyer message with availability intent"
     },
+    "sampleDataUsed": {
+      "type": "boolean",
+      "title": "Sample data used",
+      "description": "Whether the actor used its built-in sample payload because the relevant inputs were empty.",
+      "example": true
+    },
     "hasRequiredCookies": {
       "type": "boolean",
       "title": "Has required cookies",
       "description": "Whether the required Facebook cookies were present.",
       "example": true
+    },
+    "authProofLevel": {
+      "type": "string",
+      "title": "Auth proof level",
+      "description": "How strong the session proof currently is. Cookie presence alone is weaker than a verified live authenticated browser session.",
+      "example": "cookie_artifact_only"
     },
     "presentCookies": {
       "type": "array",
@@ -214,11 +242,24 @@
     "supportedWorkflows": {
       "type": "array",
       "title": "Supported workflows",
-      "description": "Workflows that the session artifact appears ready to back.",
+      "description": "Workflows that are fully proven. This remains empty until a live authenticated browser surface confirms the session.",
+      "example": [
+      ]
+    },
+    "candidateWorkflows": {
+      "type": "array",
+      "title": "Candidate workflows",
+      "description": "Workflows that the cookie artifact may support once a live browser session is verified.",
       "example": [
         "browser_backed_marketplace_reply",
         "browser_backed_inbox_review"
       ]
+    },
+    "workflowReadiness": {
+      "type": "string",
+      "title": "Workflow readiness",
+      "description": "Conservative readiness state for session-backed browser workflows.",
+      "example": "needs_live_browser_verification"
     }
   }
 }

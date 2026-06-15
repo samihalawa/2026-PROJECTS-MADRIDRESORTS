@@ -25,6 +25,12 @@
         "Audit Facebook session cookies"
       ]
     },
+    "useSampleData": {
+      "title": "Use built-in sample data when inputs are empty",
+      "type": "boolean",
+      "description": "Enabled by default so Store QA and first runs always produce a deterministic non-empty output for conversation and listing modes.",
+      "default": true
+    },
     "replyStyle": {
       "title": "Reply style",
       "type": "string",

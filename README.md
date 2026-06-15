@@ -83,7 +83,30 @@ This repo ships a runnable management MVP with five modes:
 4. `listing_ops_plan`
 5. `session_audit`
 
-Default input uses `build_reply_queue` so the Actor succeeds without credentials and produces a non-empty dataset for Store QA.
+Default input uses `build_reply_queue`, and built-in sample data is enabled when relevant arrays are empty so the Actor produces deterministic non-empty output for Store QA and first-run validation. Every management row now exposes `sampleDataUsed` plus `dataOrigin`, so sample-backed QA output is visibly separated from input-derived production output.
+
+## Production-ready operator surface
+
+This repo now includes:
+
+- a reusable core runner in [src/core.js](/Users/samihalawa/git/PROJECTS_MADRIDRESORTS/src/core.js)
+- the thin Apify entrypoint in [src/main.js](/Users/samihalawa/git/PROJECTS_MADRIDRESORTS/src/main.js)
+- a local JSON runner in [scripts/run-local.mjs](/Users/samihalawa/git/PROJECTS_MADRIDRESORTS/scripts/run-local.mjs)
+- actor validation in [scripts/validate-actor.mjs](/Users/samihalawa/git/PROJECTS_MADRIDRESORTS/scripts/validate-actor.mjs)
+- Apify control-plane inspection in [scripts/apify-doctor.mjs](/Users/samihalawa/git/PROJECTS_MADRIDRESORTS/scripts/apify-doctor.mjs)
+- Git-backed source promotion in [scripts/promote-git-source.mjs](/Users/samihalawa/git/PROJECTS_MADRIDRESORTS/scripts/promote-git-source.mjs)
+
+Run the production check locally with:
+
+```bash
+npm run check
+```
+
+Inspect Apify deployment state with:
+
+```bash
+npm run doctor:apify
+```
 
 ## How to use Facebook Marketplace Seller Manager
 
@@ -98,6 +121,7 @@ Default input uses `build_reply_queue` so the Actor succeeds without credentials
 | Field | Type | Required | Description |
 |---|---|---:|---|
 | `mode` | enum | yes | `conversation_inventory`, `build_reply_queue`, `build_follow_up_queue`, `listing_ops_plan`, or `session_audit`. |
+| `useSampleData` | boolean | no | Enabled by default so empty-input QA runs still produce deterministic output. |
 | `threads` | array | for conversation modes | Conversation rows with `surface`, `threadUrl`, listing title, buyer name, last message, age, and status. |
 | `followUpDaysThreshold` | integer | for follow-up mode | Age threshold used to select stale threads for reactivation. |
 | `listings` | array | for listing mode | Your active listing rows with title, price, age, favorites, and status. |
@@ -169,16 +193,21 @@ The default dataset contains management rows instead of raw scrape rows.
   "mode": "session_audit",
   "resultType": "session_audit",
   "hasRequiredCookies": true,
+  "authProofLevel": "cookie_artifact_only",
   "missingCookies": [],
   "presentCookies": ["c_user", "xs", "datr", "sb", "fr", "presence", "wd"],
-  "supportedWorkflows": [
+  "supportedWorkflows": [],
+  "candidateWorkflows": [
     "browser_backed_marketplace_reply",
     "browser_backed_inbox_review",
     "browser_backed_listing_ops"
   ],
-  "recommendedAction": "session_ready_for_browser_worker"
+  "workflowReadiness": "needs_live_browser_verification",
+  "recommendedAction": "verify_live_browser_session"
 }
 ```
+
+Important: `session_audit` is intentionally conservative. Cookie presence is treated as a candidate session artifact, not as proven Marketplace authentication. A live authenticated Facebook browser surface still has to be verified before any reply worker, inbox worker, or listing-action worker is considered production-ready.
 
 ## How much does it cost?
 
@@ -229,6 +258,7 @@ Phase 2:
 
 - Add authenticated browser worker modes for seller inbox and listing actions.
 - Import cookies, validate session, and execute selected replies or listing state changes for authorized sessions.
+- If the actor is company-owned, keep the Apify version in `GIT_REPO` mode so future `git push` reaches production. Do not fall back to manual `SOURCE_FILES` drift.
 
 Phase 3:
 

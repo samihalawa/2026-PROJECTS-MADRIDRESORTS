@@ -14,38 +14,6 @@ const input = {
     mode: 'build_follow_up_queue',
     replyStyle: 'concise_friendly',
     followUpDaysThreshold: 20,
-    threads: [
-        {
-            threadId: 'thread-1',
-            surface: 'marketplace_seller',
-            threadUrl: 'https://www.facebook.com/messages/t/thread-1',
-            buyerName: 'Clara',
-            listingTitle: '1 bed 1 bath Room only',
-            city: 'Madrid',
-            lastMessage: 'Sigue estando disponible?',
-            lastMessageAt: '2026-05-20T12:00:00Z',
-            status: 'needs_follow_up'
-        },
-        {
-            threadId: 'thread-2',
-            surface: 'messenger_direct',
-            threadUrl: 'https://www.facebook.com/messages/e2ee/t/thread-2',
-            buyerName: 'Jp Hrez',
-            listingTitle: 'Habitacion Madrid',
-            lastMessage: 'Como te va el puente?',
-            lastMessageAt: '2026-05-19T16:10:00Z',
-            status: 'needs_follow_up'
-        },
-        {
-            threadId: 'thread-3',
-            surface: 'marketplace_seller',
-            buyerName: 'Ana',
-            listingTitle: 'iPhone 15 Pro 128GB',
-            lastMessage: 'Hola, sigue disponible?',
-            hoursSinceLastMessage: 3,
-            status: 'new'
-        }
-    ]
 };
 
 writeFileSync(join(kvDir, 'INPUT.json'), JSON.stringify(input, null, 2));
@@ -81,6 +49,10 @@ if (!datasetItems.every((item) => item.followUpWindowReached === true)) {
 
 if (!datasetItems.some((item) => item.surface === 'messenger_direct')) {
     throw new Error('Expected one messenger_direct follow-up row.');
+}
+
+if (!datasetItems.every((item) => item.sampleDataUsed === true)) {
+    throw new Error('Expected sampleDataUsed on smoke-test rows.');
 }
 
 console.log('Smoke test passed.');
