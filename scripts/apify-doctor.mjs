@@ -6,6 +6,7 @@ if (!token) throw new Error('APIFY_TOKEN or APIFY_API_TOKEN is required.');
 
 const actorDefinition = JSON.parse(fs.readFileSync('.actor/actor.json', 'utf8'));
 const remoteUrl = execSync('git remote get-url origin', { encoding: 'utf8' }).trim();
+const sanitizeGitUrl = (url) => String(url || '').replace(/(https:\/\/)([^/@]+)@/i, '$1***@');
 
 const api = async (pathname, options = {}) => {
     const response = await fetch(`https://api.apify.com/v2${pathname}${pathname.includes('?') ? '&' : '?'}token=${encodeURIComponent(token)}`, options);
@@ -33,7 +34,7 @@ const latestBuild = builds.json?.data?.items?.[0] || null;
 
 console.log(JSON.stringify({
     actorFullName,
-    remoteUrl,
+    remoteUrl: sanitizeGitUrl(remoteUrl),
     actor: {
         id: actor.json?.data?.id,
         title: actor.json?.data?.title,
@@ -43,7 +44,7 @@ console.log(JSON.stringify({
     version: {
         versionNumber: version.json?.data?.versionNumber,
         sourceType: version.json?.data?.sourceType,
-        gitRepoUrl: version.json?.data?.gitRepoUrl || null,
+        gitRepoUrl: sanitizeGitUrl(version.json?.data?.gitRepoUrl || null),
         buildTag: version.json?.data?.buildTag,
     },
     latestBuild: latestBuild ? {

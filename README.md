@@ -108,6 +108,8 @@ Inspect Apify deployment state with:
 npm run doctor:apify
 ```
 
+If the repo is private, promote the actor with a GitHub token available in `GH_TOKEN` or `GITHUB_TOKEN` so Apify can clone the repository in `GIT_REPO` mode without falling back to stale uploaded source files.
+
 ## How to use Facebook Marketplace Seller Manager
 
 1. Choose a mode.

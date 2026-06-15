@@ -6,10 +6,16 @@ if (!token) throw new Error('APIFY_TOKEN or APIFY_API_TOKEN is required.');
 
 const actorDefinition = JSON.parse(fs.readFileSync('.actor/actor.json', 'utf8'));
 const remoteUrl = execSync('git remote get-url origin', { encoding: 'utf8' }).trim();
+const githubToken = process.env.GH_TOKEN || process.env.GITHUB_TOKEN || '';
+const sanitizeGitUrl = (url) => String(url || '').replace(/(https:\/\/)([^/@]+)@/i, '$1***@');
+
 const normalizedRemote = remoteUrl.startsWith('git@github.com:')
     ? `https://github.com/${remoteUrl.replace('git@github.com:', '').replace(/\.git$/, '')}.git`
     : remoteUrl;
-const gitRepoUrl = `${normalizedRemote}#main`;
+const authenticatedRemote = githubToken && normalizedRemote.startsWith('https://github.com/')
+    ? normalizedRemote.replace('https://', `https://${githubToken}@`)
+    : normalizedRemote;
+const gitRepoUrl = `${authenticatedRemote}#main`;
 
 const api = async (pathname, options = {}) => {
     const response = await fetch(`https://api.apify.com/v2${pathname}${pathname.includes('?') ? '&' : '?'}token=${encodeURIComponent(token)}`, options);
@@ -53,7 +59,7 @@ if (!build.ok) throw new Error(`build trigger failed ${build.status}: ${build.te
 
 console.log(JSON.stringify({
     actorFullName,
-    gitRepoUrl,
+    gitRepoUrl: sanitizeGitUrl(gitRepoUrl),
     buildId: build.json?.data?.id,
     actorUpdated: true,
     versionUpdated: true,
