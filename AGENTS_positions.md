@@ -1,6 +1,18 @@
 INDEX
+2026-06-16 | live seller manager execution | browser-CDP authenticated GraphQL is the proven path | do run `fetch_live_seller_threads` with `browserCdpUrl` when raw HTTP fails | don't regress to cookie-only direct HTTP or standalone scripts | verify actor output has live rows plus browserProof
 2026-06-15 | facebook auth proof | prove live Chrome/CDP session before actor/product expansion | do recover or verify seller-thread access on the real Facebook tab first | don't let repo ranking, cookie presence, or README strength stand in for auth proof | verify current tab state, current cookies, current seller-threads
 2026-06-15 | store positioning | focused seller manager with internal module split | do launch one focused Actor and keep suite modular | don't launch broad facebook manager, bundle-first, or scraper clone | verify current store saturation + Apify bundle docs
+
+## 2026-06-16 | CURRENT
+
+- surface/workflow: Facebook Marketplace Seller Manager live seller conversation fetch in `/Users/samihalawa/git/PROJECTS_MADRIDRESORTS`
+- mistaken approach to avoid: treating exported cookies plus server-side `fb_dtsg` as enough for direct HTTP GraphQL, or leaving the working extraction as a standalone CDP script outside the actor
+- superior approach: run the actor mode `fetch_live_seller_threads` against an authenticated Chrome DevTools Protocol endpoint via `browserCdpUrl`; import the cookies into that browser, extract runtime token state inside Facebook, call the Marketplace seller GraphQL document from the page, then normalize rows in the actor
+- evidence: current run of `node scripts/run-local.mjs` with `browserCdpUrl: http://127.0.0.1:9222` returned `resultCount: 24`, `resultType: live_seller_thread`, `authProofLevel: live_graphql_seller_threads`, browser proof title `(15) Facebook`, `hasMarketplace: true`, `hasZimo: true`, and first row `threadId: 930978993297322`, buyer `Clara Pazos`, listing `1 bed 1 bath Room only`
+- trigger terms: `Seller Manager`, `prove it works`, `cookies`, `fb_dtsg`, `GraphQL`, `Marketplace seller conversations`, `Gowa`
+- do: use `fetch_live_seller_threads` with `browserCdpUrl` for same-layer proof and only use direct HTTP as a fallback when it actually returns seller-thread data
+- don't: claim Apify/cloud/server raw-cookie direct mode works from cookie presence; direct home returned HTTP `400` and direct GraphQL with token returned Facebook error `1357054`
+- required verification before reuse: run the actor mode and quote output row count, `authProofLevel`, browser proof markers, and at least one populated buyer/listing/thread row
 
 ## 2026-06-15 | CURRENT
 

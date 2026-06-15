@@ -17,6 +17,7 @@ The current Apify Store is already crowded for general Facebook Groups scraping 
 This Actor should ship as a focused seller workflow tool:
 
 - Audit whether imported Facebook session cookies are management-ready.
+- Fetch live Marketplace seller conversations from an authenticated cookie export.
 - Turn buyer conversations into a reply queue with structured actions.
 - Turn older conversations into follow-up campaigns once they cross a stale threshold.
 - Turn listing inventory into an operations queue: follow up, bump, archive, relist, mark sold.
@@ -75,15 +76,16 @@ So the best equivalent is not "build one public Facebook Gowa clone first". It i
 
 ## Current MVP in this repo
 
-This repo ships a runnable management MVP with five modes:
+This repo ships a runnable management MVP with six modes:
 
 1. `conversation_inventory`
 2. `build_reply_queue`
 3. `build_follow_up_queue`
 4. `listing_ops_plan`
-5. `session_audit`
+5. `fetch_live_seller_threads`
+6. `session_audit`
 
-Default input uses `build_reply_queue`, and built-in sample data is enabled when relevant arrays are empty so the Actor produces deterministic non-empty output for Store QA and first-run validation. Every management row now exposes `sampleDataUsed` plus `dataOrigin`, so sample-backed QA output is visibly separated from input-derived production output.
+Default input uses `build_reply_queue`, and built-in sample data is enabled when relevant arrays are empty so the Actor produces deterministic non-empty output for Store QA and first-run validation. The authenticated `fetch_live_seller_threads` mode uses exported Facebook cookies to fetch real Marketplace seller conversations and normalize them into the same management row shape. Every management row exposes `sampleDataUsed` plus `dataOrigin`, so sample-backed QA output is visibly separated from input-derived production output.
 
 ## Production-ready operator surface
 
@@ -114,7 +116,7 @@ If the repo is private, promote the actor with a GitHub token available in `GH_T
 
 1. Choose a mode.
 2. Paste sample buyer threads or listing rows.
-3. Optionally paste exported Facebook cookies JSON for session auditing.
+3. Optionally paste exported Facebook cookies JSON for session auditing or live seller-thread fetching.
 4. Run the Actor.
 5. Download JSON/CSV output or use it via API in follow-up automations.
 
@@ -122,14 +124,19 @@ If the repo is private, promote the actor with a GitHub token available in `GH_T
 
 | Field | Type | Required | Description |
 |---|---|---:|---|
-| `mode` | enum | yes | `conversation_inventory`, `build_reply_queue`, `build_follow_up_queue`, `listing_ops_plan`, or `session_audit`. |
+| `mode` | enum | yes | `conversation_inventory`, `build_reply_queue`, `build_follow_up_queue`, `listing_ops_plan`, `fetch_live_seller_threads`, or `session_audit`. |
 | `useSampleData` | boolean | no | Enabled by default so empty-input QA runs still produce deterministic output. |
 | `threads` | array | for conversation modes | Conversation rows with `surface`, `threadUrl`, listing title, buyer name, last message, age, and status. |
 | `followUpDaysThreshold` | integer | for follow-up mode | Age threshold used to select stale threads for reactivation. |
 | `listings` | array | for listing mode | Your active listing rows with title, price, age, favorites, and status. |
 | `replyStyle` | enum | no | Tone for generated reply drafts. |
 | `replyTemplate` | string | no | Optional custom reply pattern. |
-| `cookiesJson` | string | for session audit | Exported `facebook.com` cookies JSON from Cookie-Editor or equivalent. |
+| `cookiesJson` | string | for authenticated modes | Exported `facebook.com` cookies JSON from Cookie-Editor or equivalent. Required for `fetch_live_seller_threads`; optional for `session_audit`. |
+| `maxPages` | integer | for live fetch | Maximum seller-inbox pages to fetch. Defaults to 5, capped at 40. |
+| `pageSize` | integer | for live fetch | Live seller-inbox page size. Defaults to 12, capped at 12. |
+| `fbDtsg` | string | optional for live fetch | Browser-extracted `fb_dtsg` token. Use it when cookies work in a real browser but Facebook home returns an error to server-side requests. |
+| `browserCdpUrl` | string | optional for live fetch | Chrome DevTools Protocol endpoint. When supplied, the actor imports cookies into that browser and fetches seller threads from inside the authenticated Facebook page. |
+| `browserWaitMs` | integer | optional for CDP live fetch | Wait after browser navigation before extracting Facebook runtime tokens. Defaults to 5000. |
 
 ## Output
 
@@ -211,6 +218,36 @@ The default dataset contains management rows instead of raw scrape rows.
 
 Important: `session_audit` is intentionally conservative. Cookie presence is treated as a candidate session artifact, not as proven Marketplace authentication. A live authenticated Facebook browser surface still has to be verified before any reply worker, inbox worker, or listing-action worker is considered production-ready.
 
+### Live seller-thread example
+
+```json
+{
+  "mode": "fetch_live_seller_threads",
+  "resultType": "live_seller_thread",
+  "dataOrigin": "live_facebook_graphql",
+  "authProofLevel": "live_graphql_seller_threads",
+  "workflowReadiness": "live_seller_threads_verified",
+  "fbDtsgSource": "browser_cdp",
+  "browserProof": {
+    "title": "(15) Facebook",
+    "hasMarketplace": true,
+    "hasZimo": true,
+    "fbDtsgPresent": true
+  },
+  "threadId": "930978993297322",
+  "surface": "marketplace_seller",
+  "threadUrl": "https://www.facebook.com/messages/t/930978993297322",
+  "buyerName": "Clara Pazos",
+  "listingTitle": "1 bed 1 bath Room only",
+  "lastMessageAt": "2026-06-15T11:27:43.348Z",
+  "lastMessage": "Perfecto, gracias por la info. Te confirmo en breve.",
+  "recommendedAction": "reply_now",
+  "priority": "medium"
+}
+```
+
+`fetch_live_seller_threads` is the first production authenticated mode. It reads seller conversations and prepares management rows. It does not send replies or modify listings yet; those remain later browser-backed action modes.
+
 ## How much does it cost?
 
 Recommended first monetization model: Pay per event.
@@ -258,8 +295,8 @@ Phase 1:
 
 Phase 2:
 
-- Add authenticated browser worker modes for seller inbox and listing actions.
-- Import cookies, validate session, and execute selected replies or listing state changes for authorized sessions.
+- Extend the authenticated seller-thread mode into browser-backed reply execution and listing actions.
+- Import cookies, validate session, fetch live seller conversations, and then execute selected replies or listing state changes for authorized sessions.
 - If the actor is company-owned, keep the Apify version in `GIT_REPO` mode so future `git push` reaches production. Do not fall back to manual `SOURCE_FILES` drift.
 
 Phase 3:

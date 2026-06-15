@@ -5,6 +5,19 @@ export const CANDIDATE_BROWSER_WORKFLOWS = [
     'browser_backed_inbox_review',
     'browser_backed_listing_ops',
 ];
+export const LIVE_SELLER_THREADS_WORKFLOWS = [
+    'live_marketplace_seller_thread_inventory',
+    'live_marketplace_seller_reply_queue',
+    'live_marketplace_seller_follow_up_queue',
+];
+
+const FACEBOOK_HOME_URL = 'https://www.facebook.com/';
+const FACEBOOK_GRAPHQL_URL = 'https://www.facebook.com/api/graphql/';
+const SELLER_THREAD_INITIAL_DOC_ID = '26018704387747906';
+const SELLER_THREAD_PAGINATION_DOC_ID = '25940357548956156';
+const SELLER_THREAD_INITIAL_FRIENDLY_NAME = 'CometMarketplaceInboxSellerTabThreadViewContainerQuery';
+const SELLER_THREAD_PAGINATION_FRIENDLY_NAME = 'CometMarketplaceInboxSellerTabThreadViewPaginationQuery';
+const DEFAULT_USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36';
 
 export const DEFAULT_THREADS = [
     {
@@ -63,6 +76,408 @@ export function parseCookiesJson(raw) {
         throw new Error('cookiesJson must be a JSON array of cookie objects.');
     }
     return parsed;
+}
+
+function clampNumber(value, min, max, fallback) {
+    const numericValue = Number(value);
+    if (!Number.isFinite(numericValue)) return fallback;
+    return Math.min(max, Math.max(min, Math.trunc(numericValue)));
+}
+
+function getRequiredCookieState(cookies) {
+    const names = new Set(cookies.map((cookie) => cookie.name).filter(Boolean));
+    const presentCookies = REQUIRED_COOKIES.filter((name) => names.has(name));
+    const missingCookies = REQUIRED_COOKIES.filter((name) => !names.has(name));
+    return {
+        presentCookies,
+        missingCookies,
+        hasRequiredCookies: missingCookies.length === 0,
+        optionalSignals: OPTIONAL_SIGNAL_COOKIES.filter((name) => names.has(name)),
+    };
+}
+
+function cookieHeaderFromCookies(cookies) {
+    const usableCookies = cookies
+        .filter((cookie) => cookie && cookie.name && cookie.value !== undefined && cookie.value !== null)
+        .map((cookie) => `${cookie.name}=${cookie.value}`);
+
+    if (usableCookies.length === 0) {
+        throw new Error('cookiesJson did not contain any usable name/value cookies.');
+    }
+
+    return usableCookies.join('; ');
+}
+
+function getFacebookHeaders(cookieHeader, input = {}) {
+    return {
+        'accept': '*/*',
+        'accept-language': input.acceptLanguage || 'en-US,en;q=0.9',
+        'content-type': 'application/x-www-form-urlencoded',
+        'cookie': cookieHeader,
+        'origin': 'https://www.facebook.com',
+        'referer': 'https://www.facebook.com/marketplace/inbox/',
+        'user-agent': input.userAgent || DEFAULT_USER_AGENT,
+    };
+}
+
+function extractFbDtsg(html) {
+    const patterns = [
+        /\["DTSGInitialData",\[\],\{"token":"([^"]+)"/,
+        /"DTSGInitialData",\[\],\{"token":"([^"]+)"/,
+        /"token":"([^"]+)","async_get_token"/,
+        /name="fb_dtsg"\s+value="([^"]+)"/,
+    ];
+
+    for (const pattern of patterns) {
+        const match = html.match(pattern);
+        if (match?.[1]) return match[1].replaceAll('\\/', '/');
+    }
+
+    return null;
+}
+
+function parseFacebookJson(text) {
+    const trimmed = text.trim();
+    const clean = trimmed.startsWith('for (;;);') ? trimmed.slice('for (;;);'.length) : trimmed;
+    return JSON.parse(clean);
+}
+
+function normalizeCookieForCdp(cookie) {
+    const normalized = {
+        name: cookie.name,
+        value: cookie.value,
+        domain: cookie.domain || '.facebook.com',
+        path: cookie.path || '/',
+        secure: cookie.secure !== false,
+        httpOnly: Boolean(cookie.httpOnly),
+    };
+    if (cookie.expirationDate) normalized.expires = Number(cookie.expirationDate);
+    if (cookie.sameSite) {
+        const sameSite = String(cookie.sameSite).toLowerCase();
+        if (sameSite.includes('lax')) normalized.sameSite = 'Lax';
+        if (sameSite.includes('strict')) normalized.sameSite = 'Strict';
+        if (sameSite.includes('none') || sameSite.includes('no_restriction')) normalized.sameSite = 'None';
+    }
+    return normalized;
+}
+
+async function connectCdp(wsUrl) {
+    const ws = new WebSocket(wsUrl);
+    let id = 0;
+    const pending = new Map();
+
+    ws.onmessage = (event) => {
+        const message = JSON.parse(event.data);
+        if (message.id && pending.has(message.id)) {
+            const { resolve, reject } = pending.get(message.id);
+            pending.delete(message.id);
+            if (message.error) {
+                reject(new Error(message.error.message || JSON.stringify(message.error)));
+            } else {
+                resolve(message.result);
+            }
+        }
+    };
+
+    await new Promise((resolve, reject) => {
+        ws.onopen = resolve;
+        ws.onerror = reject;
+    });
+
+    return {
+        send(method, params = {}) {
+            const messageId = ++id;
+            ws.send(JSON.stringify({ id: messageId, method, params }));
+            return new Promise((resolve, reject) => pending.set(messageId, { resolve, reject }));
+        },
+        close() {
+            ws.close();
+        },
+    };
+}
+
+async function openCdpTab(cdpUrl) {
+    if (cdpUrl.startsWith('ws://') || cdpUrl.startsWith('wss://')) {
+        return { webSocketDebuggerUrl: cdpUrl };
+    }
+
+    const baseUrl = cdpUrl.replace(/\/$/, '');
+    const response = await fetch(`${baseUrl}/json/new?https://www.facebook.com/`, { method: 'PUT' });
+    if (!response.ok) {
+        throw new Error(`CDP tab creation failed with HTTP ${response.status}.`);
+    }
+    return response.json();
+}
+
+function buildBrowserGraphqlExpression({ maxPages, pageSize }) {
+    return `(${async function runSellerThreadFetch(config) {
+        function parseFacebookJson(text) {
+            const trimmed = text.trim();
+            const clean = trimmed.startsWith('for (;;);') ? trimmed.slice('for (;;);'.length) : trimmed;
+            return JSON.parse(clean);
+        }
+        function extractFbDtsg() {
+            const html = document.documentElement.outerHTML;
+            const patterns = [
+                /\["DTSGInitialData",\[\],\{"token":"([^"]+)"/,
+                /"DTSGInitialData",\[\],\{"token":"([^"]+)"/,
+                /"token":"([^"]+)","async_get_token"/,
+                /name="fb_dtsg"\s+value="([^"]+)"/,
+            ];
+            for (const pattern of patterns) {
+                const match = html.match(pattern);
+                if (match?.[1]) return match[1].replaceAll('\\/', '/');
+            }
+            return null;
+        }
+        async function gql({ docId, friendlyName, variables, fbDtsg }) {
+            const body = new URLSearchParams({
+                __a: '1',
+                fb_api_caller_class: 'RelayModern',
+                fb_api_req_friendly_name: friendlyName,
+                doc_id: docId,
+                variables: JSON.stringify(variables),
+                fb_dtsg: fbDtsg,
+            });
+            const response = await fetch('/api/graphql/', {
+                method: 'POST',
+                credentials: 'include',
+                headers: { 'content-type': 'application/x-www-form-urlencoded' },
+                body,
+            });
+            const text = await response.text();
+            return { status: response.status, json: parseFacebookJson(text), textStart: text.slice(0, 240) };
+        }
+
+        const fbDtsg = extractFbDtsg();
+        if (!fbDtsg) {
+            throw new Error('fb_dtsg token not found in browser page.');
+        }
+
+        const responses = [];
+        let cursor = null;
+        let hasNextPage = true;
+        let pageNumber = 1;
+
+        while (pageNumber <= config.maxPages && hasNextPage) {
+            const firstPage = pageNumber === 1;
+            const response = await gql({
+                docId: firstPage ? config.initialDocId : config.paginationDocId,
+                friendlyName: firstPage ? config.initialFriendlyName : config.paginationFriendlyName,
+                variables: firstPage
+                    ? { filterLabels: null, lookBackInDays: null }
+                    : { count: config.pageSize, cursor, filterLabels: null, lookBackInDays: null },
+                fbDtsg,
+            });
+            responses.push({ pageNumber, ...response });
+            const connection = response.json?.data?.viewer?.marketplaceInboxSellerMessageThreads;
+            const edges = connection?.edges || [];
+            cursor = connection?.page_info?.end_cursor || edges.at(-1)?.cursor || null;
+            hasNextPage = Boolean(connection?.page_info?.has_next_page ?? cursor);
+            if (!cursor || edges.length === 0) break;
+            pageNumber += 1;
+        }
+
+        return {
+            title: document.title,
+            url: location.href,
+            bodyTextStart: document.body.innerText.slice(0, 300),
+            hasMarketplace: document.body.innerText.includes('Marketplace'),
+            hasZimo: document.body.innerText.includes('Zimo'),
+            fbDtsgPresent: true,
+            responses,
+        };
+    }.toString()})(${JSON.stringify({
+        maxPages,
+        pageSize,
+        initialDocId: SELLER_THREAD_INITIAL_DOC_ID,
+        paginationDocId: SELLER_THREAD_PAGINATION_DOC_ID,
+        initialFriendlyName: SELLER_THREAD_INITIAL_FRIENDLY_NAME,
+        paginationFriendlyName: SELLER_THREAD_PAGINATION_FRIENDLY_NAME,
+    })})`;
+}
+
+async function fetchLiveSellerThreadsViaCdp(input, cookies, maxPages, pageSize) {
+    const cdpUrl = input.browserCdpUrl || input.cdpUrl || input.cdpEndpoint;
+    if (!cdpUrl) return null;
+
+    const tab = await openCdpTab(cdpUrl);
+    const client = await connectCdp(tab.webSocketDebuggerUrl);
+    try {
+        await client.send('Network.enable');
+        await client.send('Page.enable');
+        await client.send('Network.setCookies', { cookies: cookies.map(normalizeCookieForCdp) });
+        await client.send('Page.navigate', { url: FACEBOOK_HOME_URL });
+        await new Promise((resolve) => setTimeout(resolve, clampNumber(input.browserWaitMs, 1000, 15000, 5000)));
+
+        const result = await client.send('Runtime.evaluate', {
+            expression: buildBrowserGraphqlExpression({ maxPages, pageSize }),
+            awaitPromise: true,
+            returnByValue: true,
+        });
+        const value = result.result?.value;
+        if (!value?.responses?.length) {
+            throw new Error('CDP browser fetch did not return seller-thread GraphQL responses.');
+        }
+
+        const items = [];
+        for (const response of value.responses) {
+            if (response.status !== 200) {
+                throw new Error(`CDP browser GraphQL page ${response.pageNumber} failed with HTTP ${response.status}: ${response.textStart || ''}`);
+            }
+            const connection = getSellerThreadConnection(response.json);
+            items.push(...connection.edges
+                .map((edge) => mapLiveSellerThread(edge, response.pageNumber))
+                .filter((item) => item.threadId || item.buyerName || item.listingTitle || item.lastMessage)
+                .map((item) => ({ ...item, fbDtsgSource: 'browser_cdp' })));
+        }
+
+        return {
+            items,
+            browserProof: {
+                title: value.title,
+                url: value.url,
+                hasMarketplace: value.hasMarketplace,
+                hasZimo: value.hasZimo,
+                fbDtsgPresent: value.fbDtsgPresent,
+            },
+        };
+    } finally {
+        client.close();
+    }
+}
+
+async function fetchFacebookContext(cookies, input) {
+    const cookieHeader = cookieHeaderFromCookies(cookies);
+    const providedFbDtsg = (input.fbDtsg || input.fb_dtsg || '').trim();
+    if (providedFbDtsg) {
+        return { cookieHeader, fbDtsg: providedFbDtsg, fbDtsgSource: 'input' };
+    }
+
+    const response = await fetch(FACEBOOK_HOME_URL, {
+        method: 'GET',
+        headers: {
+            ...getFacebookHeaders(cookieHeader, input),
+            'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        },
+    });
+    const html = await response.text();
+    const fbDtsg = extractFbDtsg(html);
+
+    if (!response.ok) {
+        throw new Error(`Facebook home request failed with HTTP ${response.status}.`);
+    }
+    if (!fbDtsg) {
+        const hasLoginMarker = html.includes('name="email"') || html.includes('login_form') || html.includes('Log in to Facebook');
+        throw new Error(hasLoginMarker
+            ? 'Facebook cookies reached the login page instead of an authenticated session.'
+            : 'Facebook home loaded but fb_dtsg token was not found.');
+    }
+
+    return { cookieHeader, fbDtsg, fbDtsgSource: 'facebook_home' };
+}
+
+async function facebookGraphql({ cookieHeader, fbDtsg, docId, friendlyName, variables, input }) {
+    const body = new URLSearchParams({
+        __a: '1',
+        fb_api_caller_class: 'RelayModern',
+        fb_api_req_friendly_name: friendlyName,
+        doc_id: docId,
+        variables: JSON.stringify(variables),
+        fb_dtsg: fbDtsg,
+    });
+
+    const response = await fetch(FACEBOOK_GRAPHQL_URL, {
+        method: 'POST',
+        headers: getFacebookHeaders(cookieHeader, input),
+        body,
+    });
+    const text = await response.text();
+
+    if (!response.ok) {
+        throw new Error(`Facebook GraphQL request ${friendlyName} failed with HTTP ${response.status}: ${text.slice(0, 240)}`);
+    }
+
+    const json = parseFacebookJson(text);
+    if (json.errors?.length) {
+        const firstError = json.errors[0];
+        throw new Error(`Facebook GraphQL request ${friendlyName} returned error: ${firstError.message || JSON.stringify(firstError).slice(0, 240)}`);
+    }
+
+    return json;
+}
+
+function getSellerThreadConnection(json) {
+    const connection = json?.data?.viewer?.marketplaceInboxSellerMessageThreads;
+    if (!connection || !Array.isArray(connection.edges)) {
+        throw new Error('Facebook GraphQL response did not include marketplaceInboxSellerMessageThreads.edges.');
+    }
+    return connection;
+}
+
+function normalizeTimestamp(value) {
+    if (!value) return null;
+    const numeric = Number(value);
+    if (Number.isFinite(numeric)) {
+        return new Date(numeric).toISOString();
+    }
+    const parsed = Date.parse(value);
+    return Number.isNaN(parsed) ? null : new Date(parsed).toISOString();
+}
+
+function getFirstMessageSnippet(node) {
+    const messageNode = node?.messages?.edges?.[0]?.node;
+    return messageNode?.snippet || messageNode?.body?.text || null;
+}
+
+function mapLiveSellerThread(edge, pageNumber) {
+    const node = edge?.node || {};
+    const buyer = node.other_user
+        || node.thread_partner
+        || node.other_participants?.edges?.[0]?.node?.messaging_actor
+        || node.participants?.edges?.[0]?.node
+        || {};
+    const listing = node.marketplace_listing
+        || node.marketplace_thread_data?.messageable_item
+        || node.for_sale_item
+        || node.associated_listing
+        || {};
+    const lastMessageAt = normalizeTimestamp(node.updated_time_precise || node.updated_time || node.last_message_timestamp);
+    const unreadCount = Number(node.unread_count || node.unreadCount || 0);
+    const lastMessage = getFirstMessageSnippet(node);
+    const threadId = node.thread_id || node.thread_key?.thread_fbid || node.id || edge?.cursor || null;
+    const listingId = listing.id || listing.listing_id || null;
+    const thread = {
+        threadId,
+        surface: 'marketplace_seller',
+        threadUrl: threadId ? `https://www.facebook.com/messages/t/${threadId}` : null,
+        buyerName: buyer.name || buyer.short_name || null,
+        buyerId: buyer.id || null,
+        listingId,
+        listingTitle: listing.marketplace_listing_title || listing.title || listing.name || null,
+        lastMessage,
+        lastMessageAt,
+        unreadCount,
+        status: unreadCount > 0 ? 'unread' : 'open',
+        liveFetchPage: pageNumber,
+        cursor: edge?.cursor || null,
+    };
+    const action = classifyReplyAction(thread);
+
+    return {
+        mode: 'fetch_live_seller_threads',
+        resultType: 'live_seller_thread',
+        dataOrigin: 'live_facebook_graphql',
+        authProofLevel: 'live_graphql_seller_threads',
+        workflowReadiness: 'live_seller_threads_verified',
+        ...thread,
+        buyerIntent: inferBuyerIntent(thread),
+        daysSinceLastMessage: getThreadAgeDays(thread),
+        recommendedAction: action.recommendedAction,
+        priority: action.priority,
+        reason: action.reason,
+        sampleDataUsed: false,
+    };
 }
 
 function renderTemplate(template, values) {
@@ -337,11 +752,7 @@ function buildListingOpsPlan(input, sampleDataUsed) {
 
 function auditSession(input) {
     const cookies = parseCookiesJson(input.cookiesJson || '');
-    const names = new Set(cookies.map((cookie) => cookie.name).filter(Boolean));
-    const presentCookies = REQUIRED_COOKIES.filter((name) => names.has(name));
-    const missingCookies = REQUIRED_COOKIES.filter((name) => !names.has(name));
-    const hasRequiredCookies = missingCookies.length === 0;
-    const optionalSignals = OPTIONAL_SIGNAL_COOKIES.filter((name) => names.has(name));
+    const { presentCookies, missingCookies, hasRequiredCookies, optionalSignals } = getRequiredCookieState(cookies);
     const candidateWorkflows = hasRequiredCookies ? CANDIDATE_BROWSER_WORKFLOWS : [];
     const authProofLevel = hasRequiredCookies ? 'cookie_artifact_only' : 'insufficient_cookie_artifact';
 
@@ -365,7 +776,68 @@ function auditSession(input) {
     }];
 }
 
-export function runActorMode(rawInput = {}) {
+async function fetchLiveSellerThreads(input) {
+    const cookies = parseCookiesJson(input.cookiesJson || '');
+    const { presentCookies, missingCookies, hasRequiredCookies, optionalSignals } = getRequiredCookieState(cookies);
+
+    if (!hasRequiredCookies) {
+        throw new Error(`fetch_live_seller_threads requires Facebook cookies: missing ${missingCookies.join(', ') || 'unknown'}.`);
+    }
+
+    const maxPages = clampNumber(input.maxPages, 1, 40, 5);
+    const pageSize = clampNumber(input.pageSize, 1, 12, 12);
+    const cdpResult = await fetchLiveSellerThreadsViaCdp(input, cookies, maxPages, pageSize);
+    if (cdpResult) {
+        return cdpResult.items.map((item) => ({
+            ...item,
+            browserProof: cdpResult.browserProof,
+            presentCookies: [...presentCookies, ...optionalSignals],
+            supportedWorkflows: LIVE_SELLER_THREADS_WORKFLOWS,
+            candidateWorkflows: CANDIDATE_BROWSER_WORKFLOWS,
+        }));
+    }
+
+    const { cookieHeader, fbDtsg, fbDtsgSource } = await fetchFacebookContext(cookies, input);
+    const items = [];
+    let pageNumber = 1;
+    let cursor = null;
+    let hasNextPage = true;
+
+    while (pageNumber <= maxPages && hasNextPage) {
+        const isFirstPage = pageNumber === 1;
+        const json = await facebookGraphql({
+            cookieHeader,
+            fbDtsg,
+            docId: isFirstPage ? SELLER_THREAD_INITIAL_DOC_ID : SELLER_THREAD_PAGINATION_DOC_ID,
+            friendlyName: isFirstPage ? SELLER_THREAD_INITIAL_FRIENDLY_NAME : SELLER_THREAD_PAGINATION_FRIENDLY_NAME,
+            variables: isFirstPage
+                ? { filterLabels: null, lookBackInDays: null }
+                : { count: pageSize, cursor, filterLabels: null, lookBackInDays: null },
+            input,
+        });
+        const connection = getSellerThreadConnection(json);
+        const pageItems = connection.edges
+            .map((edge) => mapLiveSellerThread(edge, pageNumber))
+            .filter((item) => item.threadId || item.buyerName || item.listingTitle || item.lastMessage);
+
+        items.push(...pageItems);
+        cursor = connection.page_info?.end_cursor || connection.pageInfo?.endCursor || connection.edges.at(-1)?.cursor || null;
+        hasNextPage = Boolean(connection.page_info?.has_next_page ?? connection.pageInfo?.hasNextPage ?? cursor);
+
+        if (pageItems.length === 0 || !cursor) break;
+        pageNumber += 1;
+    }
+
+    return items.map((item) => ({
+        ...item,
+        fbDtsgSource,
+        presentCookies: [...presentCookies, ...optionalSignals],
+        supportedWorkflows: LIVE_SELLER_THREADS_WORKFLOWS,
+        candidateWorkflows: CANDIDATE_BROWSER_WORKFLOWS,
+    }));
+}
+
+export async function runActorMode(rawInput = {}) {
     const mode = rawInput.mode || 'build_reply_queue';
     const { enriched, sampleDataUsed } = withSampleData(rawInput);
 
@@ -380,6 +852,8 @@ export function runActorMode(rawInput = {}) {
         items = buildListingOpsPlan(enriched, sampleDataUsed);
     } else if (mode === 'session_audit') {
         items = auditSession(enriched);
+    } else if (mode === 'fetch_live_seller_threads') {
+        items = await fetchLiveSellerThreads(enriched);
     } else {
         throw new Error(`Unsupported mode: ${mode}`);
     }

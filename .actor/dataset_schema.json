@@ -14,8 +14,14 @@
           "recommendedAction",
           "priority",
           "dataOrigin",
+          "authProofLevel",
+          "workflowReadiness",
           "buyerName",
+          "buyerId",
+          "listingId",
           "listingTitle",
+          "unreadCount",
+          "liveFetchPage",
           "daysSinceLastMessage",
           "lastMessage",
           "replyDraft",
@@ -44,6 +50,37 @@
           "priority",
           "dataOrigin",
           "sampleDataUsed",
+          "reason"
+        ]
+      }
+    },
+    "liveSellerThreads": {
+      "title": "Live seller threads",
+      "transformation": {
+        "fields": [
+          "mode",
+          "resultType",
+          "threadId",
+          "surface",
+          "threadUrl",
+          "buyerName",
+          "buyerId",
+          "listingId",
+          "listingTitle",
+          "buyerIntent",
+          "status",
+          "unreadCount",
+          "lastMessageAt",
+          "daysSinceLastMessage",
+          "lastMessage",
+          "recommendedAction",
+          "priority",
+          "liveFetchPage",
+          "dataOrigin",
+          "authProofLevel",
+          "workflowReadiness",
+          "fbDtsgSource",
+          "browserProof",
           "reason"
         ]
       }
@@ -125,6 +162,12 @@
       "description": "The source listing identifier when present.",
       "example": "listing-1"
     },
+    "buyerId": {
+      "type": "string",
+      "title": "Buyer ID",
+      "description": "The buyer account identifier when available from a live seller-thread response.",
+      "example": "61579000000000"
+    },
     "buyerName": {
       "type": "string",
       "title": "Buyer name",
@@ -166,6 +209,18 @@
       "title": "Last message",
       "description": "Last buyer message used for inventory and reply decisions.",
       "example": "Hola, sigue disponible?"
+    },
+    "unreadCount": {
+      "type": "number",
+      "title": "Unread count",
+      "description": "Unread messages detected for the conversation when present.",
+      "example": 1
+    },
+    "liveFetchPage": {
+      "type": "number",
+      "title": "Live fetch page",
+      "description": "Pagination page number that produced the live seller-thread row.",
+      "example": 1
     },
     "followUpWindowReached": {
       "type": "boolean",
@@ -218,8 +273,8 @@
     "authProofLevel": {
       "type": "string",
       "title": "Auth proof level",
-      "description": "How strong the session proof currently is. Cookie presence alone is weaker than a verified live authenticated browser session.",
-      "example": "cookie_artifact_only"
+      "description": "How strong the session proof currently is. Cookie presence alone is weaker than a live seller-thread GraphQL fetch.",
+      "example": "live_graphql_seller_threads"
     },
     "presentCookies": {
       "type": "array",
@@ -242,7 +297,7 @@
     "supportedWorkflows": {
       "type": "array",
       "title": "Supported workflows",
-      "description": "Workflows that are fully proven. This remains empty until a live authenticated browser surface confirms the session.",
+      "description": "Workflows that are fully proven. This remains empty in session_audit and is populated only after a live seller-thread fetch.",
       "example": [
       ]
     },
@@ -260,6 +315,24 @@
       "title": "Workflow readiness",
       "description": "Conservative readiness state for session-backed browser workflows.",
       "example": "needs_live_browser_verification"
+    },
+    "fbDtsgSource": {
+      "type": "string",
+      "title": "fb_dtsg source",
+      "description": "Where the live fetch obtained the Facebook fb_dtsg token.",
+      "example": "input"
+    },
+    "browserProof": {
+      "type": "object",
+      "title": "Browser proof",
+      "description": "Small same-layer proof from CDP mode, such as page title and visible Marketplace/Zimo markers.",
+      "example": {
+        "title": "(15) Facebook",
+        "url": "https://www.facebook.com/",
+        "hasMarketplace": true,
+        "hasZimo": true,
+        "fbDtsgPresent": true
+      }
     }
   }
 }

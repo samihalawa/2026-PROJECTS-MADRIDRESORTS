@@ -4,7 +4,7 @@ import { runActorMode } from './core.js';
 await Actor.init();
 
 const input = (await Actor.getInput()) || {};
-const { mode, items, summary, sampleDataUsed } = runActorMode(input);
+const { mode, items, summary, sampleDataUsed } = await runActorMode(input);
 const firstItem = items[0] || null;
 
 for (const item of items) {

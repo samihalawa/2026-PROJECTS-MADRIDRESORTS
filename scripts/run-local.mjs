@@ -11,7 +11,7 @@ const readInput = () => {
 };
 
 const input = readInput();
-const result = runActorMode(input);
+const result = await runActorMode(input);
 
 process.stdout.write(`${JSON.stringify({
     mode: result.mode,

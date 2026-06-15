@@ -2,7 +2,7 @@
   "title": "Facebook Marketplace Seller Manager input",
   "type": "object",
   "schemaVersion": 1,
-  "description": "Marketplace-first management workflow for Facebook sellers. Default mode produces a non-empty reply queue without credentials. The product is intentionally not scrape-only: it models inbox operations, stale follow-ups, listing actions, and session-readiness for later browser-backed execution.",
+  "description": "Marketplace-first management workflow for Facebook sellers. Default mode produces a non-empty reply queue without credentials. Authenticated mode can fetch live seller conversations from exported Facebook cookies. The product is intentionally not scrape-only: it models inbox operations, stale follow-ups, listing actions, and session-readiness.",
   "properties": {
     "mode": {
       "title": "Mode",
@@ -15,6 +15,7 @@
         "build_reply_queue",
         "build_follow_up_queue",
         "listing_ops_plan",
+        "fetch_live_seller_threads",
         "session_audit"
       ],
       "enumTitles": [
@@ -22,6 +23,7 @@
         "Build reply queue",
         "Build stale follow-up queue",
         "Build listing operations plan",
+        "Fetch live seller conversations",
         "Audit Facebook session cookies"
       ]
     },
@@ -129,8 +131,49 @@
     "cookiesJson": {
       "title": "Facebook cookies JSON",
       "type": "string",
-      "description": "Paste exported facebook.com cookies JSON from Cookie-Editor or a similar browser tool. Used only in session_audit mode to validate whether a browser-backed seller workflow can be attached later.",
+      "description": "Paste exported facebook.com cookies JSON from Cookie-Editor or a similar browser tool. Used in session_audit mode for cookie-readiness and in fetch_live_seller_threads mode to fetch live Marketplace seller conversations.",
       "editor": "textarea",
+      "sectionCaption": "Advanced authenticated workflows"
+    },
+    "maxPages": {
+      "title": "Maximum live inbox pages",
+      "type": "integer",
+      "description": "Maximum seller-inbox pages to fetch in fetch_live_seller_threads mode. Each page usually returns up to 12 conversations.",
+      "default": 5,
+      "minimum": 1,
+      "maximum": 40,
+      "sectionCaption": "Advanced authenticated workflows"
+    },
+    "fbDtsg": {
+      "title": "Facebook fb_dtsg token",
+      "type": "string",
+      "description": "Optional browser-extracted fb_dtsg token for fetch_live_seller_threads. Use this when server-side cookie requests cannot load Facebook home but the same session works in a real browser.",
+      "editor": "textfield",
+      "sectionCaption": "Advanced authenticated workflows"
+    },
+    "browserCdpUrl": {
+      "title": "Browser CDP URL",
+      "type": "string",
+      "description": "Optional Chrome DevTools Protocol endpoint such as http://127.0.0.1:9222 or a ws:// browser endpoint. When supplied, fetch_live_seller_threads imports the cookies into that browser and runs the seller-thread GraphQL call inside the authenticated Facebook page.",
+      "editor": "textfield",
+      "sectionCaption": "Advanced authenticated workflows"
+    },
+    "browserWaitMs": {
+      "title": "Browser page wait in ms",
+      "type": "integer",
+      "description": "Wait time after browser navigation before extracting Facebook runtime tokens in CDP mode.",
+      "default": 5000,
+      "minimum": 1000,
+      "maximum": 15000,
+      "sectionCaption": "Advanced authenticated workflows"
+    },
+    "pageSize": {
+      "title": "Live inbox page size",
+      "type": "integer",
+      "description": "Seller-inbox pagination size for fetch_live_seller_threads mode. Facebook currently caps this workflow at about 12 conversations per page.",
+      "default": 12,
+      "minimum": 1,
+      "maximum": 12,
       "sectionCaption": "Advanced authenticated workflows"
     }
   },
