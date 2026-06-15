@@ -25,6 +25,11 @@
           "daysSinceLastMessage",
           "lastMessage",
           "replyDraft",
+          "writeAttempted",
+          "apiErrorCode",
+          "fbtraceId",
+          "errorSummary",
+          "errorMessage",
           "sampleDataUsed",
           "reason"
         ]
@@ -121,6 +126,27 @@
           "workflowReadiness",
           "sampleDataUsed",
           "recommendedAction"
+        ]
+      }
+    },
+    "replySendResult": {
+      "title": "Reply send result",
+      "transformation": {
+        "fields": [
+          "mode",
+          "resultType",
+          "threadId",
+          "listingId",
+          "status",
+          "replyDraft",
+          "authProofLevel",
+          "workflowReadiness",
+          "writeAttempted",
+          "apiErrorCode",
+          "fbtraceId",
+          "errorSummary",
+          "errorMessage",
+          "reason"
         ]
       }
     }
@@ -252,6 +278,36 @@
       "description": "Suggested seller reply text when generated.",
       "example": "Hola Ana, sigue disponible..."
     },
+    "writeAttempted": {
+      "type": "boolean",
+      "title": "Write attempted",
+      "description": "Whether a write-gated CLI mutation was attempted.",
+      "example": true
+    },
+    "apiErrorCode": {
+      "type": "number",
+      "title": "API error code",
+      "description": "Facebook API error code when a write attempt fails.",
+      "example": 1675012
+    },
+    "fbtraceId": {
+      "type": "string",
+      "title": "Facebook trace ID",
+      "description": "Facebook trace id returned by the failed API call, when present.",
+      "example": "GX7RmFE27Dy"
+    },
+    "errorSummary": {
+      "type": "string",
+      "title": "Error summary",
+      "description": "Short Facebook error summary from a failed write attempt.",
+      "example": "Your request couldn't be processed"
+    },
+    "errorMessage": {
+      "type": "string",
+      "title": "Error message",
+      "description": "Detailed Facebook error message from a failed write attempt.",
+      "example": "A server error noncoercible_variable_value occured. Check server logs for details."
+    },
     "reason": {
       "type": "string",
       "title": "Reason",
@@ -273,8 +329,8 @@
     "authProofLevel": {
       "type": "string",
       "title": "Auth proof level",
-      "description": "How strong the session proof currently is. Cookie presence alone is weaker than a live seller-thread GraphQL fetch.",
-      "example": "live_graphql_seller_threads"
+      "description": "How strong the session proof currently is. Cookie presence alone is weaker than a live seller-thread GraphQL fetch through pp-cli or browser CDP.",
+      "example": "pp_cli_browser_session_seller_threads"
     },
     "presentCookies": {
       "type": "array",
@@ -320,13 +376,15 @@
       "type": "string",
       "title": "fb_dtsg source",
       "description": "Where the live fetch obtained the Facebook fb_dtsg token.",
-      "example": "input"
+      "example": "pp_cli_browser_session"
     },
     "browserProof": {
       "type": "object",
       "title": "Browser proof",
-      "description": "Small same-layer proof from CDP mode, such as page title and visible Marketplace/Zimo markers.",
+      "description": "Small same-layer proof from the selected live backend, such as pp-cli browser-session proof or CDP page markers.",
       "example": {
+        "backend": "facebook-marketplace-pp-cli",
+        "sessionProof": "doctor_validated_browser_session",
         "title": "(15) Facebook",
         "url": "https://www.facebook.com/",
         "hasMarketplace": true,

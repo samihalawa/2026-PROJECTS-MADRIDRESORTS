@@ -76,16 +76,19 @@ So the best equivalent is not "build one public Facebook Gowa clone first". It i
 
 ## Current MVP in this repo
 
-This repo ships a runnable management MVP with six modes:
+This repo ships a runnable management MVP with seven modes:
 
 1. `conversation_inventory`
 2. `build_reply_queue`
 3. `build_follow_up_queue`
 4. `listing_ops_plan`
 5. `fetch_live_seller_threads`
-6. `session_audit`
+6. `send_reply`
+7. `session_audit`
 
-Default input uses `build_reply_queue`, and built-in sample data is enabled when relevant arrays are empty so the Actor produces deterministic non-empty output for Store QA and first-run validation. The authenticated `fetch_live_seller_threads` mode uses exported Facebook cookies to fetch real Marketplace seller conversations and normalize them into the same management row shape. Every management row exposes `sampleDataUsed` plus `dataOrigin`, so sample-backed QA output is visibly separated from input-derived production output.
+Default input uses `build_reply_queue`, and built-in sample data is enabled when relevant arrays are empty so the Actor produces deterministic non-empty output for Store QA and first-run validation. The authenticated `fetch_live_seller_threads` mode prefers the configured `facebook-marketplace-pp-cli` browser session, then falls back to browser CDP, then direct HTTP cookies. It fetches real Marketplace seller conversations and normalizes them into the same management row shape. Every management row exposes `sampleDataUsed` plus `dataOrigin`, so sample-backed QA output is visibly separated from input-derived production output.
+
+The write-gated `send_reply` mode calls `facebook-marketplace-pp-cli reply --write` and records either the submitted response or the exact Facebook API error. Current live proof shows the CLI reaches Facebook but the packaged `reply` mutation is rejected with `noncoercible_variable_value`, so reply writes are implemented and observable but not yet a verified-success path until the CLI mutation shape is corrected.
 
 ## Production-ready operator surface
 
@@ -116,15 +119,16 @@ If the repo is private, promote the actor with a GitHub token available in `GH_T
 
 1. Choose a mode.
 2. Paste sample buyer threads or listing rows.
-3. Optionally paste exported Facebook cookies JSON for session auditing or live seller-thread fetching.
-4. Run the Actor.
-5. Download JSON/CSV output or use it via API in follow-up automations.
+3. Optionally paste exported Facebook cookies JSON for session auditing or fallback live seller-thread fetching.
+4. For the preferred live backend, configure `facebook-marketplace-pp-cli` on the runtime host with `facebook-marketplace-pp-cli auth login --chrome`.
+5. Run the Actor.
+6. Download JSON/CSV output or use it via API in follow-up automations.
 
 ## Input
 
 | Field | Type | Required | Description |
 |---|---|---:|---|
-| `mode` | enum | yes | `conversation_inventory`, `build_reply_queue`, `build_follow_up_queue`, `listing_ops_plan`, `fetch_live_seller_threads`, or `session_audit`. |
+| `mode` | enum | yes | `conversation_inventory`, `build_reply_queue`, `build_follow_up_queue`, `listing_ops_plan`, `fetch_live_seller_threads`, `send_reply`, or `session_audit`. |
 | `useSampleData` | boolean | no | Enabled by default so empty-input QA runs still produce deterministic output. |
 | `threads` | array | for conversation modes | Conversation rows with `surface`, `threadUrl`, listing title, buyer name, last message, age, and status. |
 | `followUpDaysThreshold` | integer | for follow-up mode | Age threshold used to select stale threads for reactivation. |
@@ -132,11 +136,18 @@ If the repo is private, promote the actor with a GitHub token available in `GH_T
 | `replyStyle` | enum | no | Tone for generated reply drafts. |
 | `replyTemplate` | string | no | Optional custom reply pattern. |
 | `cookiesJson` | string | for authenticated modes | Exported `facebook.com` cookies JSON from Cookie-Editor or equivalent. Required for `fetch_live_seller_threads`; optional for `session_audit`. |
+| `liveBackend` | enum | no | `auto`, `pp_cli`, `browser_cdp`, or `direct_http`. Defaults to `auto`, which tries `facebook-marketplace-pp-cli` first. |
+| `ppCliPath` | string | optional for CLI live backend | Path to `facebook-marketplace-pp-cli`. Defaults to the binary on `PATH`. |
+| `ppCliConfig` | string | optional for CLI live backend | Optional config path passed as `FACEBOOK_MARKET_CONFIG`, useful for mounted runtime configs. |
+| `ppCliTimeoutMs` | integer | optional for CLI live backend | Per-command timeout. Defaults to 45000 ms. |
 | `maxPages` | integer | for live fetch | Maximum seller-inbox pages to fetch. Defaults to 5, capped at 40. |
 | `pageSize` | integer | for live fetch | Live seller-inbox page size. Defaults to 12, capped at 12. |
 | `fbDtsg` | string | optional for live fetch | Browser-extracted `fb_dtsg` token. Use it when cookies work in a real browser but Facebook home returns an error to server-side requests. |
-| `browserCdpUrl` | string | optional for live fetch | Chrome DevTools Protocol endpoint. When supplied, the actor imports cookies into that browser and fetches seller threads from inside the authenticated Facebook page. |
+| `browserCdpUrl` | string | optional for live fetch | Chrome DevTools Protocol endpoint, including remote browser providers such as Anchor/Browserless when you provide their endpoint. When supplied, the actor imports cookies into that browser and fetches seller threads from inside the authenticated Facebook page. |
 | `browserWaitMs` | integer | optional for CDP live fetch | Wait after browser navigation before extracting Facebook runtime tokens. Defaults to 5000. |
+| `threadId` | string | for `send_reply` | Marketplace seller thread id. |
+| `listingId` | string | optional for `send_reply` | Listing id associated with the seller thread. |
+| `message` | string | for `send_reply` | Reply text passed to `facebook-marketplace-pp-cli reply --write`. |
 
 ## Output
 
@@ -217,6 +228,54 @@ The default dataset contains management rows instead of raw scrape rows.
 ```
 
 Important: `session_audit` is intentionally conservative. Cookie presence is treated as a candidate session artifact, not as proven Marketplace authentication. A live authenticated Facebook browser surface still has to be verified before any reply worker, inbox worker, or listing-action worker is considered production-ready.
+
+### Live seller-thread backend
+
+Preferred runtime path:
+
+```bash
+facebook-marketplace-pp-cli auth login --chrome
+facebook-marketplace-pp-cli doctor --agent
+```
+
+Then run:
+
+```json
+{
+  "mode": "fetch_live_seller_threads",
+  "liveBackend": "pp_cli",
+  "maxPages": 1
+}
+```
+
+The current verified read path returned real seller-thread rows from the configured browser session, including thread `930978993297322`, buyer `Clara Pazos`, listing `1 bed 1 bath Room only`, and last message `Perfecto, gracias por la info. Te confirmo en breve.`
+
+For remote-browser runtimes, set `browserCdpUrl` to the provider endpoint. This is the right integration point for Anchor/Browserless-style browsers. Do not treat Apify cloud by itself as an authenticated Facebook session; the runtime must have either the pp-cli config or a remote CDP endpoint with the session.
+
+### Write-gated reply mode
+
+Example:
+
+```json
+{
+  "mode": "send_reply",
+  "threadId": "930978993297322",
+  "listingId": "698098793060190",
+  "message": "Perfecto Clara, gracias. Quedo pendiente; si quieres avanzar, me confirmas y te paso los siguientes detalles."
+}
+```
+
+The actor calls `facebook-marketplace-pp-cli reply --write`. If Facebook rejects the current CLI mutation, the dataset row includes `status: "failed"`, `workflowReadiness: "reply_mutation_failed"`, `apiErrorCode`, `fbtraceId`, and the raw response so the failure is actionable.
+
+### Crawlab-compatible runtime
+
+This repo includes [infra/crawlab/run-actor.sh](/Users/samihalawa/git/PROJECTS_MADRIDRESORTS/infra/crawlab/run-actor.sh), matching the storage pattern used by the multi-actor Crawlab repo:
+
+```bash
+infra/crawlab/run-actor.sh "$(printf '%s' '{"mode":"fetch_live_seller_threads","liveBackend":"pp_cli","maxPages":1}' | base64)"
+```
+
+The runner writes `INPUT.json`, runs `node src/main.js`, stores `OUTPUT.json`, and normalizes dataset rows into `items.jsonl` under `/data/actor-runs/facebook-marketplace-seller-manager/<task-id>/`.
 
 ### Live seller-thread example
 

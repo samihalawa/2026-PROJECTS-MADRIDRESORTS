@@ -16,6 +16,7 @@
         "build_follow_up_queue",
         "listing_ops_plan",
         "fetch_live_seller_threads",
+        "send_reply",
         "session_audit"
       ],
       "enumTitles": [
@@ -24,6 +25,7 @@
         "Build stale follow-up queue",
         "Build listing operations plan",
         "Fetch live seller conversations",
+        "Send Marketplace seller reply",
         "Audit Facebook session cookies"
       ]
     },
@@ -131,8 +133,51 @@
     "cookiesJson": {
       "title": "Facebook cookies JSON",
       "type": "string",
-      "description": "Paste exported facebook.com cookies JSON from Cookie-Editor or a similar browser tool. Used in session_audit mode for cookie-readiness and in fetch_live_seller_threads mode to fetch live Marketplace seller conversations.",
+      "description": "Paste exported facebook.com cookies JSON from Cookie-Editor or a similar browser tool. Used in session_audit mode for cookie-readiness and as a fallback in fetch_live_seller_threads when pp_cli is not configured.",
       "editor": "textarea",
+      "sectionCaption": "Advanced authenticated workflows"
+    },
+    "liveBackend": {
+      "title": "Live seller-thread backend",
+      "type": "string",
+      "description": "Backend used by fetch_live_seller_threads. auto first tries the configured facebook-marketplace-pp-cli browser session, then browser CDP, then direct HTTP cookies.",
+      "editor": "select",
+      "default": "auto",
+      "enum": [
+        "auto",
+        "pp_cli",
+        "browser_cdp",
+        "direct_http"
+      ],
+      "enumTitles": [
+        "Auto: pp-cli, then CDP, then direct HTTP",
+        "facebook-marketplace-pp-cli browser session",
+        "Browser CDP endpoint",
+        "Direct HTTP cookies"
+      ],
+      "sectionCaption": "Advanced authenticated workflows"
+    },
+    "ppCliPath": {
+      "title": "facebook-marketplace-pp-cli path",
+      "type": "string",
+      "description": "Optional executable path. Defaults to facebook-marketplace-pp-cli on PATH. Configure the session with facebook-marketplace-pp-cli auth login --chrome on the runtime host.",
+      "editor": "textfield",
+      "sectionCaption": "Advanced authenticated workflows"
+    },
+    "ppCliConfig": {
+      "title": "facebook-marketplace-pp-cli config path",
+      "type": "string",
+      "description": "Optional config path passed as FACEBOOK_MARKET_CONFIG for runtimes that mount a dedicated browser-session config.",
+      "editor": "textfield",
+      "sectionCaption": "Advanced authenticated workflows"
+    },
+    "ppCliTimeoutMs": {
+      "title": "facebook-marketplace-pp-cli timeout in ms",
+      "type": "integer",
+      "description": "Timeout for each Marketplace pp-cli command.",
+      "default": 45000,
+      "minimum": 5000,
+      "maximum": 120000,
       "sectionCaption": "Advanced authenticated workflows"
     },
     "maxPages": {
@@ -175,6 +220,27 @@
       "minimum": 1,
       "maximum": 12,
       "sectionCaption": "Advanced authenticated workflows"
+    },
+    "threadId": {
+      "title": "Reply thread ID",
+      "type": "string",
+      "description": "Marketplace seller thread id used by send_reply mode.",
+      "editor": "textfield",
+      "sectionCaption": "Write-gated reply workflow"
+    },
+    "listingId": {
+      "title": "Reply listing ID",
+      "type": "string",
+      "description": "Optional listing id associated with the seller thread in send_reply mode.",
+      "editor": "textfield",
+      "sectionCaption": "Write-gated reply workflow"
+    },
+    "message": {
+      "title": "Reply message",
+      "type": "string",
+      "description": "Reply text sent by send_reply mode through facebook-marketplace-pp-cli reply --write.",
+      "editor": "textarea",
+      "sectionCaption": "Write-gated reply workflow"
     }
   },
   "required": [

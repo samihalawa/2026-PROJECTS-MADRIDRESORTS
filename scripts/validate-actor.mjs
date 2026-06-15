@@ -39,6 +39,7 @@ let liveModeMissingCookieError = null;
 try {
     await runActorMode({
         mode: 'fetch_live_seller_threads',
+        liveBackend: 'direct_http',
         cookiesJson: JSON.stringify([{ name: 'c_user', value: 'test-user' }]),
     });
 } catch (error) {

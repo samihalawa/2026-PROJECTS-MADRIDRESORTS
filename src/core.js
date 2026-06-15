@@ -1,3 +1,6 @@
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+
 export const REQUIRED_COOKIES = ['c_user', 'xs', 'datr', 'sb', 'fr'];
 export const OPTIONAL_SIGNAL_COOKIES = ['presence', 'wd'];
 export const CANDIDATE_BROWSER_WORKFLOWS = [
@@ -18,6 +21,8 @@ const SELLER_THREAD_PAGINATION_DOC_ID = '25940357548956156';
 const SELLER_THREAD_INITIAL_FRIENDLY_NAME = 'CometMarketplaceInboxSellerTabThreadViewContainerQuery';
 const SELLER_THREAD_PAGINATION_FRIENDLY_NAME = 'CometMarketplaceInboxSellerTabThreadViewPaginationQuery';
 const DEFAULT_USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36';
+const PP_CLI_BIN = 'facebook-marketplace-pp-cli';
+const execFileAsync = promisify(execFile);
 
 export const DEFAULT_THREADS = [
     {
@@ -140,6 +145,38 @@ function parseFacebookJson(text) {
     const trimmed = text.trim();
     const clean = trimmed.startsWith('for (;;);') ? trimmed.slice('for (;;);'.length) : trimmed;
     return JSON.parse(clean);
+}
+
+function parseJsonFromStdout(stdout) {
+    const text = String(stdout || '').trim();
+    if (!text) throw new Error('Command returned empty stdout.');
+    const jsonStart = text.indexOf('{');
+    const arrayStart = text.indexOf('[');
+    const startIndexes = [jsonStart, arrayStart].filter((index) => index >= 0);
+    if (startIndexes.length === 0) {
+        throw new Error(`Command stdout did not contain JSON: ${text.slice(0, 240)}`);
+    }
+    return JSON.parse(text.slice(Math.min(...startIndexes)));
+}
+
+async function runPpCli(args, input) {
+    const bin = input.ppCliPath || PP_CLI_BIN;
+    const timeout = clampNumber(input.ppCliTimeoutMs, 5000, 120000, 45000);
+    try {
+        const result = await execFileAsync(bin, args, {
+            timeout,
+            maxBuffer: 20 * 1024 * 1024,
+            env: {
+                ...process.env,
+                ...(input.ppCliConfig ? { FACEBOOK_MARKET_CONFIG: input.ppCliConfig } : {}),
+            },
+        });
+        return parseJsonFromStdout(result.stdout);
+    } catch (error) {
+        const stderr = error.stderr ? String(error.stderr).slice(0, 500) : '';
+        const stdout = error.stdout ? String(error.stdout).slice(0, 500) : '';
+        throw new Error(`facebook-marketplace-pp-cli failed: ${error.message}${stderr ? ` stderr=${stderr}` : ''}${stdout ? ` stdout=${stdout}` : ''}`);
+    }
 }
 
 function normalizeCookieForCdp(cookie) {
@@ -408,7 +445,8 @@ async function facebookGraphql({ cookieHeader, fbDtsg, docId, friendlyName, vari
 }
 
 function getSellerThreadConnection(json) {
-    const connection = json?.data?.viewer?.marketplaceInboxSellerMessageThreads;
+    const connection = json?.data?.viewer?.marketplaceInboxSellerMessageThreads
+        || json?.data?.data?.viewer?.marketplaceInboxSellerMessageThreads;
     if (!connection || !Array.isArray(connection.edges)) {
         throw new Error('Facebook GraphQL response did not include marketplaceInboxSellerMessageThreads.edges.');
     }
@@ -777,26 +815,149 @@ function auditSession(input) {
 }
 
 async function fetchLiveSellerThreads(input) {
+    const liveBackend = input.liveBackend || 'auto';
     const cookies = parseCookiesJson(input.cookiesJson || '');
     const { presentCookies, missingCookies, hasRequiredCookies, optionalSignals } = getRequiredCookieState(cookies);
 
-    if (!hasRequiredCookies) {
-        throw new Error(`fetch_live_seller_threads requires Facebook cookies: missing ${missingCookies.join(', ') || 'unknown'}.`);
-    }
-
     const maxPages = clampNumber(input.maxPages, 1, 40, 5);
     const pageSize = clampNumber(input.pageSize, 1, 12, 12);
-    const cdpResult = await fetchLiveSellerThreadsViaCdp(input, cookies, maxPages, pageSize);
-    if (cdpResult) {
-        return cdpResult.items.map((item) => ({
-            ...item,
-            browserProof: cdpResult.browserProof,
-            presentCookies: [...presentCookies, ...optionalSignals],
-            supportedWorkflows: LIVE_SELLER_THREADS_WORKFLOWS,
-            candidateWorkflows: CANDIDATE_BROWSER_WORKFLOWS,
-        }));
+
+    if (liveBackend === 'auto' || liveBackend === 'pp_cli') {
+        try {
+            const ppCliResult = await fetchLiveSellerThreadsViaPpCli(input, maxPages, pageSize);
+            return ppCliResult.items.map((item) => ({
+                ...item,
+                authProofLevel: 'pp_cli_browser_session_seller_threads',
+                workflowReadiness: 'live_seller_threads_verified',
+                fbDtsgSource: 'pp_cli_browser_session',
+                browserProof: ppCliResult.browserProof,
+                presentCookies: hasRequiredCookies ? [...presentCookies, ...optionalSignals] : [],
+                supportedWorkflows: LIVE_SELLER_THREADS_WORKFLOWS,
+                candidateWorkflows: CANDIDATE_BROWSER_WORKFLOWS,
+            }));
+        } catch (error) {
+            if (liveBackend === 'pp_cli') throw error;
+            input.log?.warn?.(`pp_cli backend failed, falling back: ${error.message}`);
+        }
     }
 
+    if (!hasRequiredCookies) {
+        throw new Error(`fetch_live_seller_threads requires either configured facebook-marketplace-pp-cli auth or Facebook cookies: missing ${missingCookies.join(', ') || 'unknown'}.`);
+    }
+
+    if (liveBackend === 'auto' || liveBackend === 'browser_cdp') {
+        const cdpResult = await fetchLiveSellerThreadsViaCdp(input, cookies, maxPages, pageSize);
+        if (cdpResult) {
+            return cdpResult.items.map((item) => ({
+                ...item,
+                browserProof: cdpResult.browserProof,
+                presentCookies: [...presentCookies, ...optionalSignals],
+                supportedWorkflows: LIVE_SELLER_THREADS_WORKFLOWS,
+                candidateWorkflows: CANDIDATE_BROWSER_WORKFLOWS,
+            }));
+        }
+        if (liveBackend === 'browser_cdp') {
+            throw new Error('browser_cdp backend requires browserCdpUrl, cdpUrl, or cdpEndpoint.');
+        }
+    }
+
+    if (liveBackend === 'direct_http' || liveBackend === 'auto') {
+        return fetchLiveSellerThreadsViaDirectHttp(input, cookies, maxPages, pageSize, presentCookies, optionalSignals);
+    }
+
+    throw new Error(`Unsupported liveBackend: ${liveBackend}`);
+}
+
+async function fetchLiveSellerThreadsViaPpCli(input, maxPages, pageSize) {
+    const items = [];
+    let pageNumber = 1;
+    let cursor = null;
+    let hasNextPage = true;
+
+    while (pageNumber <= maxPages && hasNextPage) {
+        const firstPage = pageNumber === 1;
+        const args = firstPage
+            ? ['inbox', 'seller-threads', '--agent', '--no-cache']
+            : [
+                'inbox',
+                'seller-threads-page',
+                '--agent',
+                '--no-cache',
+                '--variables',
+                JSON.stringify({ count: pageSize, cursor, filterLabels: null, lookBackInDays: null }),
+            ];
+        const json = await runPpCli(args, input);
+        const connection = getSellerThreadConnection(json);
+        const pageItems = connection.edges
+            .map((edge) => mapLiveSellerThread(edge, pageNumber))
+            .filter((item) => item.threadId || item.buyerName || item.listingTitle || item.lastMessage);
+
+        items.push(...pageItems);
+        cursor = connection.page_info?.end_cursor || connection.pageInfo?.endCursor || connection.edges.at(-1)?.cursor || null;
+        hasNextPage = Boolean(connection.page_info?.has_next_page ?? connection.pageInfo?.hasNextPage ?? cursor);
+        if (pageItems.length === 0 || !cursor) break;
+        pageNumber += 1;
+    }
+
+    return {
+        items,
+        browserProof: {
+            backend: 'facebook-marketplace-pp-cli',
+            sessionProof: 'doctor_validated_browser_session',
+        },
+    };
+}
+
+async function sendMarketplaceReply(input) {
+    const threadId = input.threadId || input.replyThreadId;
+    const message = input.message || input.replyMessage;
+    const listingId = input.listingId || input.replyListingId;
+
+    if (!threadId || !message) {
+        throw new Error('send_reply requires threadId and message.');
+    }
+
+    const args = [
+        'reply',
+        '--agent',
+        '--write',
+        '--thread',
+        String(threadId),
+        '--message',
+        String(message),
+    ];
+    if (listingId) {
+        args.push('--listing', String(listingId));
+    }
+
+    const json = await runPpCli(args, input);
+    const firstError = Array.isArray(json?.errors) ? json.errors[0] : null;
+
+    return [{
+        mode: 'send_reply',
+        resultType: 'reply_send_result',
+        threadId: String(threadId),
+        listingId: listingId ? String(listingId) : null,
+        replyDraft: String(message),
+        status: firstError ? 'failed' : 'submitted',
+        priority: firstError ? 'high' : 'low',
+        authProofLevel: 'pp_cli_write_gate',
+        workflowReadiness: firstError ? 'reply_mutation_failed' : 'reply_submitted',
+        dataOrigin: 'input_payload',
+        sampleDataUsed: false,
+        writeAttempted: true,
+        apiErrorCode: firstError?.code ?? firstError?.api_error_code ?? null,
+        fbtraceId: firstError?.fbtrace_id ?? null,
+        errorSummary: firstError?.summary ?? null,
+        errorMessage: firstError?.message ?? null,
+        rawResponse: json,
+        reason: firstError
+            ? 'facebook-marketplace-pp-cli reached Facebook write endpoint, but Facebook rejected the reply mutation payload.'
+            : 'facebook-marketplace-pp-cli write gate accepted and submitted the reply mutation.',
+    }];
+}
+
+async function fetchLiveSellerThreadsViaDirectHttp(input, cookies, maxPages, pageSize, presentCookies, optionalSignals) {
     const { cookieHeader, fbDtsg, fbDtsgSource } = await fetchFacebookContext(cookies, input);
     const items = [];
     let pageNumber = 1;
@@ -854,6 +1015,8 @@ export async function runActorMode(rawInput = {}) {
         items = auditSession(enriched);
     } else if (mode === 'fetch_live_seller_threads') {
         items = await fetchLiveSellerThreads(enriched);
+    } else if (mode === 'send_reply') {
+        items = await sendMarketplaceReply(enriched);
     } else {
         throw new Error(`Unsupported mode: ${mode}`);
     }
