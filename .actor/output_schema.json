@@ -1,7 +1,8 @@
 {
-  "actorSpecification": 1,
+  "$schema": "https://apify.com/schemas/v1/output.ide.json",
+  "actorOutputSchemaVersion": 1,
   "title": "Facebook Marketplace Seller Manager output",
-  "type": "object",
+  "description": "Links and metadata for the latest management run outputs.",
   "properties": {
     "mode": {
       "type": "string",
