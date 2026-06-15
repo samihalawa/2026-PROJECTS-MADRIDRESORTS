@@ -6,12 +6,12 @@ INDEX
 
 - surface/workflow: Facebook Marketplace session recovery and runtime proof in `/Users/samihalawa/git/PROJECTS_MADRIDRESORTS`
 - mistaken approach to avoid: drifting into repo comparisons, actor packaging, cookie inventory, or generic browser tooling before proving the live Facebook session can actually expose seller threads
-- superior approach: use the active Chrome CDP surface first, inspect the real Facebook tab, verify whether auth cookies survive navigation, and only then run `facebook-marketplace-pp-cli inbox seller_threads`
-- evidence: current run proved `Network.setCookies` can temporarily insert `c_user/xs/fr`, but Facebook clears them on the next navigation; four local credential pairs all return the literal login error `你输入的登录信息有误。找回你的账户并登录。`; no Chrome-family cookie DB on disk contains a live `facebook.com` auth session
+- superior approach: first replay the exact real-browser route that worked before on the visible Work-profile Facebook tab with Cookie-Editor import, then separate that result from the old `Chrome-CDP` debug browser before judging seller-thread access
+- evidence: current run proved the recovered 7-cookie JSON imported on the live Work-profile tab shows the literal toast `Cookies were imported`, reload changes the page from `登录 Facebook` to remembered account `Zimo Qiu` with `继续`, and the next step lands on `facebook.com/two_step_verification/two_factor/...` showing `Sami Halawa Ribas · Facebook` plus `Go to your authentication app`; a separate `ps` check showed the debug endpoint at `127.0.0.1:9222` belongs to another process launched as `--user-data-dir=/Users/samihalawa/Library/Application Support/Google/Chrome-CDP`, so its failures do not prove the visible Work window failed
 - trigger terms: `Zimo Qiu`, `restore session`, `older than 20 days`, `seller threads`, `reply`, `cookies were imported`, `continue as Zimo`
-- do: treat live Chrome/CDP + seller-thread visibility as the gating proof layer before any product or automation claim
-- don't: treat cookie presence, remembered-account UI, README claims, or package installation as runtime proof
-- required verification before reuse: confirm current Facebook tab state, confirm current cookies after a real navigation, and confirm `seller_threads` returns actual live data from the same session
+- do: treat the visible Work-profile Facebook tab and its post-import state as the gating proof layer before any product or automation claim
+- don't: treat the separate `Chrome-CDP` browser, raw cookie rows, remembered-account UI alone, README claims, or package installation as runtime proof
+- required verification before reuse: confirm current visible Facebook tab state after Cookie-Editor import, confirm whether it stops at chooser, 2FA, or home/inbox, and only then test `seller_threads` against that same authenticated surface
 
 ## 2026-06-15 | CURRENT
 
