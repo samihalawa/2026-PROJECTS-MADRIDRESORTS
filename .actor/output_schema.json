@@ -2,40 +2,17 @@
   "$schema": "https://apify.com/schemas/v1/output.ide.json",
   "actorOutputSchemaVersion": 1,
   "title": "Facebook Marketplace Seller Manager output",
-  "description": "Links and metadata for the latest management run outputs.",
+  "description": "Links to the latest management outputs for the actor run.",
   "properties": {
-    "mode": {
+    "results": {
       "type": "string",
-      "title": "Mode"
-    },
-    "summary": {
-      "type": "object",
-      "title": "Summary"
-    },
-    "sampleDataUsed": {
-      "type": "boolean",
-      "title": "Sample data used"
-    },
-    "dataOrigin": {
-      "type": "string",
-      "title": "Data origin"
-    },
-    "resultCount": {
-      "type": "number",
-      "title": "Result count"
-    },
-    "authProofLevel": {
-      "type": "string",
-      "title": "Auth proof level"
-    },
-    "workflowReadiness": {
-      "type": "string",
-      "title": "Workflow readiness"
-    },
-    "defaultDatasetUrl": {
-      "type": "string",
-      "title": "Default dataset URL",
+      "title": "Management results",
       "template": "{{links.apiDefaultDatasetUrl}}/items"
+    },
+    "outputRecord": {
+      "type": "string",
+      "title": "Run summary record",
+      "template": "{{links.apiDefaultKeyValueStoreUrl}}/records/OUTPUT"
     }
   }
 }
