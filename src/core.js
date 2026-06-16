@@ -930,8 +930,17 @@ async function sendMarketplaceReply(input) {
         args.push('--listing', String(listingId));
     }
 
-    const json = await runPpCli(args, input);
+    let json = null;
+    let cliError = null;
+    try {
+        json = await runPpCli(args, input);
+    } catch (error) {
+        cliError = error;
+    }
     const firstError = Array.isArray(json?.errors) ? json.errors[0] : null;
+    const cliErrorMessage = cliError ? String(cliError.message || cliError) : null;
+    const doctorRefreshRequired = cliErrorMessage?.includes('doctor pass is older than 30m0s');
+    const sqliteBusy = cliErrorMessage?.includes('SQLITE_BUSY') || cliErrorMessage?.includes('database is locked');
 
     return [{
         mode: 'send_reply',
@@ -939,21 +948,35 @@ async function sendMarketplaceReply(input) {
         threadId: String(threadId),
         listingId: listingId ? String(listingId) : null,
         replyDraft: String(message),
-        status: firstError ? 'failed' : 'submitted',
-        priority: firstError ? 'high' : 'low',
+        status: firstError || cliError ? 'failed' : 'submitted',
+        priority: firstError || cliError ? 'high' : 'low',
         authProofLevel: 'pp_cli_write_gate',
-        workflowReadiness: firstError ? 'reply_mutation_failed' : 'reply_submitted',
+        workflowReadiness: firstError
+            ? 'reply_mutation_failed'
+            : doctorRefreshRequired
+                ? 'pp_cli_doctor_refresh_required'
+                : sqliteBusy
+                    ? 'pp_cli_sqlite_busy'
+                    : cliError
+                        ? 'pp_cli_command_failed'
+                        : 'reply_submitted',
         dataOrigin: 'input_payload',
         sampleDataUsed: false,
         writeAttempted: true,
         apiErrorCode: firstError?.code ?? firstError?.api_error_code ?? null,
         fbtraceId: firstError?.fbtrace_id ?? null,
         errorSummary: firstError?.summary ?? null,
-        errorMessage: firstError?.message ?? null,
+        errorMessage: firstError?.message ?? cliErrorMessage ?? null,
         rawResponse: json,
         reason: firstError
             ? 'facebook-marketplace-pp-cli reached Facebook write endpoint, but Facebook rejected the reply mutation payload.'
-            : 'facebook-marketplace-pp-cli write gate accepted and submitted the reply mutation.',
+            : doctorRefreshRequired
+                ? 'facebook-marketplace-pp-cli refused to write because doctor freshness expired.'
+                : sqliteBusy
+                    ? 'facebook-marketplace-pp-cli local state was locked during the write attempt.'
+                    : cliError
+                        ? 'facebook-marketplace-pp-cli failed before Facebook accepted the write mutation.'
+                        : 'facebook-marketplace-pp-cli write gate accepted and submitted the reply mutation.',
     }];
 }
 
