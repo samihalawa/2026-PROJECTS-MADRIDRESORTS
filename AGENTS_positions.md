@@ -1,8 +1,20 @@
 INDEX
+2026-06-18 | false-positive pp_cli auth proof | browser-session proof can validate with only display cookies and still fail seller-thread auth | do inspect Chrome cookie store/config for `c_user`/`xs` and compare against live Marketplace state before trusting `doctor` | don't treat `GET /marketplace/ verified` or `Authenticated` as proof of logged-in seller-thread access | verify real Facebook cookies plus successful `inbox seller-threads`
 2026-06-16 | marketplace reply writes | CLI write gate is required but current reply mutation is rejected | do use `facebook-marketplace-pp-cli reply --write` through `send_reply` and capture fbtrace | don't claim sent from dry-run, browser login, or read-thread success | verify dataset status submitted after latest write attempt
 2026-06-16 | live seller manager execution | pp-cli browser-session GraphQL is the proven first path | do run `fetch_live_seller_threads` with `liveBackend: pp_cli` when the CLI session is configured, CDP only as fallback | don't regress to cookie-only direct HTTP, standalone scripts, or CDP-only architecture | verify actor output has live rows plus pp-cli/browser proof
 2026-06-15 | facebook auth proof | prove live Chrome/CDP session before actor/product expansion | do recover or verify seller-thread access on the real Facebook tab first | don't let repo ranking, cookie presence, or README strength stand in for auth proof | verify current tab state, current cookies, current seller-threads
 2026-06-15 | store positioning | focused seller manager with internal module split | do launch one focused Actor and keep suite modular | don't launch broad facebook manager, bundle-first, or scraper clone | verify current store saturation + Apify bundle docs
+
+## 2026-06-18 | CURRENT
+
+- surface/workflow: Facebook Marketplace CLI auth recovery in `/Users/samihalawa/git/PROJECTS_MADRIDRESORTS`
+- mistaken approach to avoid: trusting `facebook-marketplace-pp-cli doctor --agent` or `auth status` as proof that Marketplace seller-thread auth is live when the stored config only contains a non-auth cookie
+- superior approach: inspect `~/.config/facebook-marketplace-pp-cli/config.toml`, the Chrome `Default/Cookies` store, and the live Facebook tab together before reusing the `pp_cli` path; require real `c_user` and `xs` presence in the active Chrome profile or a successful `inbox seller-threads` read
+- evidence: on 2026-06-18 the CLI still reported `Authenticated` and `GET /marketplace/ verified`, but `config.toml` only stored `access_token = '"wd=1357x703"'`; Chrome `Default/Cookies` had `262` rows and `0` `facebook.com` cookies; `auth login --chrome --profile "Work"` returned `No Chrome profile has cookies for .facebook.com`; `inbox seller-threads --agent --no-cache` still failed with `fb_dtsg not available`
+- trigger terms: `Authenticated`, `browser_session_proof`, `GET /marketplace/ verified`, `wd=`, `fb_dtsg not available`, `No Chrome profile has cookies`
+- do: treat this as a false-positive browser proof and reacquire a real logged-in Chrome session before spending more cycles on CLI retries
+- don't: rerun `doctor`, `auth refresh`, or `seller-threads` in a loop when the stored config lacks `c_user`/`xs`
+- required verification before reuse: quote the active Chrome cookie names for `.facebook.com` or a successful `seller-threads` result row, not just the doctor output
 
 ## 2026-06-16 | CURRENT
 

@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 
-export const REQUIRED_COOKIES = ['c_user', 'xs', 'datr', 'sb', 'fr'];
+export const REQUIRED_COOKIES = ['c_user', 'xs', 'datr', 'sb'];
 export const OPTIONAL_SIGNAL_COOKIES = ['presence', 'wd'];
 export const CANDIDATE_BROWSER_WORKFLOWS = [
     'browser_backed_marketplace_reply',
@@ -21,6 +21,7 @@ const SELLER_THREAD_PAGINATION_DOC_ID = '25940357548956156';
 const SELLER_THREAD_INITIAL_FRIENDLY_NAME = 'CometMarketplaceInboxSellerTabThreadViewContainerQuery';
 const SELLER_THREAD_PAGINATION_FRIENDLY_NAME = 'CometMarketplaceInboxSellerTabThreadViewPaginationQuery';
 const DEFAULT_USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36';
+const DIRECT_HTTP_USER_AGENT = 'Mozilla/5.0';
 const PP_CLI_BIN = 'facebook-marketplace-pp-cli';
 const execFileAsync = promisify(execFile);
 
@@ -113,7 +114,7 @@ function cookieHeaderFromCookies(cookies) {
     return usableCookies.join('; ');
 }
 
-function getFacebookHeaders(cookieHeader, input = {}) {
+function getFacebookGraphqlHeaders(cookieHeader, input = {}) {
     return {
         'accept': '*/*',
         'accept-language': input.acceptLanguage || 'en-US,en;q=0.9',
@@ -121,7 +122,16 @@ function getFacebookHeaders(cookieHeader, input = {}) {
         'cookie': cookieHeader,
         'origin': 'https://www.facebook.com',
         'referer': 'https://www.facebook.com/marketplace/inbox/',
-        'user-agent': input.userAgent || DEFAULT_USER_AGENT,
+        'user-agent': input.userAgent || input.directHttpUserAgent || DIRECT_HTTP_USER_AGENT,
+    };
+}
+
+function getFacebookHtmlHeaders(cookieHeader, input = {}) {
+    return {
+        'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'accept-language': input.acceptLanguage || 'en-US,en;q=0.9',
+        'cookie': cookieHeader,
+        'user-agent': input.userAgent || input.directHttpUserAgent || DIRECT_HTTP_USER_AGENT,
     };
 }
 
@@ -393,10 +403,7 @@ async function fetchFacebookContext(cookies, input) {
 
     const response = await fetch(FACEBOOK_HOME_URL, {
         method: 'GET',
-        headers: {
-            ...getFacebookHeaders(cookieHeader, input),
-            'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        },
+        headers: getFacebookHtmlHeaders(cookieHeader, input),
     });
     const html = await response.text();
     const fbDtsg = extractFbDtsg(html);
@@ -426,7 +433,7 @@ async function facebookGraphql({ cookieHeader, fbDtsg, docId, friendlyName, vari
 
     const response = await fetch(FACEBOOK_GRAPHQL_URL, {
         method: 'POST',
-        headers: getFacebookHeaders(cookieHeader, input),
+        headers: getFacebookGraphqlHeaders(cookieHeader, input),
         body,
     });
     const text = await response.text();
