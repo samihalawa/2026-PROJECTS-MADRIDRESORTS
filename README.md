@@ -4,6 +4,16 @@ Facebook Marketplace Seller Manager is a Marketplace-first management Actor for 
 
 The current Apify Store is already crowded for general Facebook Groups scraping and Facebook Marketplace listing extraction. The stronger product angle is a seller workflow layer: inbox triage, reply drafting, stale follow-ups, listing operations planning, and later authenticated inbox and listing actions.
 
+## Current live cookie proof
+
+On 2026-06-19, the repo's direct HTTP live-fetch path was re-verified with a fresh exported `facebook.com` cookie set for `c_user=61579001435313`. The actor returned real Marketplace seller-thread rows, including:
+
+- `1494259919145926` / `Eduardo Escobar`
+- `1509637693337627` / `Bruno Oliveira`
+- `930978993297322` / `Clara Pazos`
+
+The verified request shape uses the minimal `Mozilla/5.0` user agent for direct HTTP cookie sessions. A Chrome-style user agent had previously triggered Facebook soft failures for the same cookies.
+
 ## Why this Actor exists
 
 - Marketplace scraping is crowded. Seller management is the cleaner gap.
@@ -96,6 +106,7 @@ This repo now includes:
 
 - a reusable core runner in [src/core.js](/Users/samihalawa/git/PROJECTS_MADRIDRESORTS/src/core.js)
 - the thin Apify entrypoint in [src/main.js](/Users/samihalawa/git/PROJECTS_MADRIDRESORTS/src/main.js)
+- a thin HTTP service in [src/server.js](/Users/samihalawa/git/PROJECTS_MADRIDRESORTS/src/server.js)
 - a local JSON runner in [scripts/run-local.mjs](/Users/samihalawa/git/PROJECTS_MADRIDRESORTS/scripts/run-local.mjs)
 - actor validation in [scripts/validate-actor.mjs](/Users/samihalawa/git/PROJECTS_MADRIDRESORTS/scripts/validate-actor.mjs)
 - Apify control-plane inspection in [scripts/apify-doctor.mjs](/Users/samihalawa/git/PROJECTS_MADRIDRESORTS/scripts/apify-doctor.mjs)
@@ -114,6 +125,52 @@ npm run doctor:apify
 ```
 
 If the repo is private, promote the actor with a GitHub token available in `GH_TOKEN` or `GITHUB_TOKEN` so Apify can clone the repository in `GIT_REPO` mode without falling back to stale uploaded source files.
+
+## Coolify / Gowa-style HTTP runtime
+
+This repo can now run in two modes from the same Dockerfile:
+
+- `FBM_RUNTIME=actor` (default): Apify actor entrypoint
+- `FBM_RUNTIME=server`: HTTP API for Coolify / Anchor-adjacent cookie-backed workflows
+
+Server routes:
+
+- `GET /health`
+- `GET /modes`
+- `POST /run`
+- `POST /api/run`
+
+Optional env:
+
+- `FACEBOOK_COOKIES_JSON`: default `cookiesJson` used when the request body omits it
+- `FACEBOOK_MARKET_API_TOKEN`: bearer or `x-api-key` auth for the HTTP API
+- `PORT`: HTTP listen port, defaults to `3000`
+
+Example health check:
+
+```bash
+curl -sS http://localhost:3000/health | jq .
+```
+
+Example live fetch with server-provided cookies:
+
+```bash
+curl -sS http://localhost:3000/run \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "mode": "fetch_live_seller_threads",
+    "liveBackend": "direct_http",
+    "maxPages": 2
+  }' | jq .
+```
+
+Example live fetch with request-provided cookies:
+
+```bash
+curl -sS http://localhost:3000/run \
+  -H 'Content-Type: application/json' \
+  -d @input.json | jq .
+```
 
 ## How to use Facebook Marketplace Seller Manager
 

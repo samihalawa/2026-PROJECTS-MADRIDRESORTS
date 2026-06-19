@@ -1,9 +1,21 @@
 INDEX
+2026-06-19 | direct_http fresh-cookie route | exported Facebook cookies can work live without pp_cli if the request shape stays minimal | do use the repo direct_http path with the minimal Mozilla/5.0 UA and current exported cookies when pp_cli/browser auth is unavailable | don't assume direct_http is dead from older 400s or Chrome-style UA soft failures | verify with real seller-thread rows from fetch_live_seller_threads
 2026-06-18 | false-positive pp_cli auth proof | browser-session proof can validate with only display cookies and still fail seller-thread auth | do inspect Chrome cookie store/config for `c_user`/`xs` and compare against live Marketplace state before trusting `doctor` | don't treat `GET /marketplace/ verified` or `Authenticated` as proof of logged-in seller-thread access | verify real Facebook cookies plus successful `inbox seller-threads`
 2026-06-16 | marketplace reply writes | CLI write gate is required but current reply mutation is rejected | do use `facebook-marketplace-pp-cli reply --write` through `send_reply` and capture fbtrace | don't claim sent from dry-run, browser login, or read-thread success | verify dataset status submitted after latest write attempt
 2026-06-16 | live seller manager execution | pp-cli browser-session GraphQL is the proven first path | do run `fetch_live_seller_threads` with `liveBackend: pp_cli` when the CLI session is configured, CDP only as fallback | don't regress to cookie-only direct HTTP, standalone scripts, or CDP-only architecture | verify actor output has live rows plus pp-cli/browser proof
 2026-06-15 | facebook auth proof | prove live Chrome/CDP session before actor/product expansion | do recover or verify seller-thread access on the real Facebook tab first | don't let repo ranking, cookie presence, or README strength stand in for auth proof | verify current tab state, current cookies, current seller-threads
 2026-06-15 | store positioning | focused seller manager with internal module split | do launch one focused Actor and keep suite modular | don't launch broad facebook manager, bundle-first, or scraper clone | verify current store saturation + Apify bundle docs
+
+## 2026-06-19 | CURRENT
+
+- surface/workflow: direct HTTP Facebook Marketplace seller-thread fetch in `/Users/samihalawa/git/PROJECTS_MADRIDRESORTS`
+- mistaken approach to avoid: treating the direct cookie-backed path as fundamentally broken because older exported sessions returned `400`, login wrappers, or Facebook `1357054` errors under the repo's previous request shape
+- superior approach: use fresh exported cookies and keep the request shape minimal for direct HTTP (`Mozilla/5.0` user agent). Let the repo fetch `fb_dtsg` from Facebook home and run the seller-thread GraphQL call from that same session before escalating to pp_cli or browser-only conclusions
+- evidence: on 2026-06-19 a fresh cookie set with `c_user=61579001435313` was saved to `/tmp/facebook-cookies-2026-06-19-fresh.json`; `runActorMode({mode:"fetch_live_seller_threads",liveBackend:"direct_http",maxPages:2})` returned `24` real `live_seller_thread` rows, including `1494259919145926` (`Eduardo Escobar`), `1509637693337627` (`Bruno Oliveira`), and `930978993297322` (`Clara Pazos`); the same repo had previously soft-failed with a Chrome-style UA until the direct HTTP headers were reduced to the accepted minimal shape
+- trigger terms: `fresh cookie`, `direct_http`, `facebook_home`, `1357054`, `400`, `Chrome UA`, `pp_cli unavailable`
+- do: prefer this direct cookie-backed path as the first no-browser fallback when a current exported cookie bundle is available
+- don't: claim the cookie route is dead from stale-cookie tests, old header shapes, or pp_cli auth confusion
+- required verification before reuse: quote a current `fetch_live_seller_threads` output row and the returned `resultCount`, not just a successful home-page token fetch
 
 ## 2026-06-18 | CURRENT
 

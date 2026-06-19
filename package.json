@@ -5,12 +5,13 @@
   "type": "module",
   "scripts": {
     "start": "node src/main.js",
+    "start:server": "node src/server.js",
     "run:local": "node scripts/run-local.mjs",
     "test:smoke": "node scripts/smoke-test.mjs",
     "test:modes": "node scripts/validate-actor.mjs",
     "doctor:apify": "node scripts/apify-doctor.mjs",
     "promote:git-source": "node scripts/promote-git-source.mjs",
-    "check": "node --check src/main.js && node --check src/core.js && node --check scripts/run-local.mjs && node --check scripts/validate-actor.mjs && node --check scripts/apify-doctor.mjs && node --check scripts/promote-git-source.mjs && npm run test:smoke && npm run test:modes"
+    "check": "node --check src/main.js && node --check src/server.js && node --check src/core.js && node --check scripts/run-local.mjs && node --check scripts/validate-actor.mjs && node --check scripts/apify-doctor.mjs && node --check scripts/promote-git-source.mjs && npm run test:smoke && npm run test:modes"
   },
   "dependencies": {
     "apify": "^3.4.0"

@@ -1066,3 +1066,13 @@ export async function runActorMode(rawInput = {}) {
 
     return { mode, items, summary, sampleDataUsed };
 }
+
+export function withDefaultCookies(input = {}, env = process.env) {
+    if (input.cookiesJson && String(input.cookiesJson).trim()) return input;
+    const envCookies = env.FACEBOOK_COOKIES_JSON || env.FB_COOKIES_JSON || '';
+    if (!String(envCookies).trim()) return input;
+    return {
+        ...input,
+        cookiesJson: envCookies,
+    };
+}
