@@ -1,10 +1,22 @@
 INDEX
+2026-06-19 | coolify cloudflare ssl loop | public domain can self-redirect forever even when Coolify healthcheck is green if Cloudflare SSL mode stays flexible | do switch Cloudflare zone SSL to full when the origin already serves HTTPS and Coolify redirects HTTP to HTTPS | don't re-debug Node/Coolify runtime after origin HTTPS already returns the expected JSON | verify public domain returns the same JSON as direct HTTPS origin
 2026-06-19 | direct_http fresh-cookie route | exported Facebook cookies can work live without pp_cli if the request shape stays minimal | do use the repo direct_http path with the minimal Mozilla/5.0 UA and current exported cookies when pp_cli/browser auth is unavailable | don't assume direct_http is dead from older 400s or Chrome-style UA soft failures | verify with real seller-thread rows from fetch_live_seller_threads
 2026-06-18 | false-positive pp_cli auth proof | browser-session proof can validate with only display cookies and still fail seller-thread auth | do inspect Chrome cookie store/config for `c_user`/`xs` and compare against live Marketplace state before trusting `doctor` | don't treat `GET /marketplace/ verified` or `Authenticated` as proof of logged-in seller-thread access | verify real Facebook cookies plus successful `inbox seller-threads`
 2026-06-16 | marketplace reply writes | CLI write gate is required but current reply mutation is rejected | do use `facebook-marketplace-pp-cli reply --write` through `send_reply` and capture fbtrace | don't claim sent from dry-run, browser login, or read-thread success | verify dataset status submitted after latest write attempt
 2026-06-16 | live seller manager execution | pp-cli browser-session GraphQL is the proven first path | do run `fetch_live_seller_threads` with `liveBackend: pp_cli` when the CLI session is configured, CDP only as fallback | don't regress to cookie-only direct HTTP, standalone scripts, or CDP-only architecture | verify actor output has live rows plus pp-cli/browser proof
 2026-06-15 | facebook auth proof | prove live Chrome/CDP session before actor/product expansion | do recover or verify seller-thread access on the real Facebook tab first | don't let repo ranking, cookie presence, or README strength stand in for auth proof | verify current tab state, current cookies, current seller-threads
 2026-06-15 | store positioning | focused seller manager with internal module split | do launch one focused Actor and keep suite modular | don't launch broad facebook manager, bundle-first, or scraper clone | verify current store saturation + Apify bundle docs
+
+## 2026-06-19 | CURRENT
+
+- surface/workflow: Coolify + Cloudflare publication for `facebook-marketplace-and-autochat.megawebs.com` in `/Users/samihalawa/git/PROJECTS_MADRIDRESORTS`
+- mistaken approach to avoid: re-debugging the Node runtime, Docker image, or app routes after Coolify has already marked the container healthy and direct HTTPS origin requests return the expected JSON
+- superior approach: once the origin serves HTTPS correctly, check Cloudflare zone SSL mode immediately. If it is `flexible`, switch it to `full` before touching app code; `flexible` will send HTTP to origin, the origin will redirect to HTTPS, and the public host will loop on the same URL forever
+- evidence: on 2026-06-19 deployment `kwri4bnslhstdowey1orirf3` finished with `Attempt 1 of 10 | Healthcheck status: "healthy"` and `Rolling update completed`; direct origin HTTP `curl -H 'Host: facebook-marketplace-and-autochat.megawebs.com' http://5.75.140.17/health` returned `302 Found` with `Location: https://facebook-marketplace-and-autochat.megawebs.com/health`; direct origin HTTPS `curl -k -H 'Host: facebook-marketplace-and-autochat.megawebs.com' https://5.75.140.17/health` returned JSON with `"ok": true`; public requests through Cloudflare returned repeated `HTTP/2 307` with `location: https://facebook-marketplace-and-autochat.megawebs.com/health`; Cloudflare zone `983fdc43b69ec7d555352b93d64f20a1` showed `"ssl":"flexible"` until it was changed to `"full"`
+- trigger terms: `Found`, `307`, `self redirect`, `Cloudflare`, `flexible`, `Coolify healthy but public broken`, `same URL loop`
+- do: compare public host behavior with direct origin HTTPS before changing runtime code
+- don't: treat a public redirect loop as proof that `/health`, `/modes`, or `/run` are broken in Node
+- required verification before reuse: quote the public `/health` JSON and at least one public `/run` result after the Cloudflare SSL mode change
 
 ## 2026-06-19 | CURRENT
 
