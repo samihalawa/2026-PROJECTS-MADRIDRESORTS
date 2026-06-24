@@ -13,6 +13,21 @@ const followUp = await runActorMode({ mode: 'build_follow_up_queue', followUpDay
 assert(followUp.items.length >= 2, 'Expected follow-up queue rows from sample data.');
 assert(followUp.items.every((item) => item.followUpWindowReached === true), 'Expected all follow-up rows to cross threshold.');
 
+const followUpBatch = await runActorMode({
+    mode: 'send_follow_up_batch',
+    followUpUseCase: 'room_rental',
+    area: 'Madrid',
+    stayWindow: 'dias o semanas',
+    stayRestriction: 'No meses ni estancias largas',
+    availabilityText: 'Ahora mismo tenemos habitaciones disponibles',
+    contactPhone: '+34642609188',
+    maxMessages: 2,
+});
+assert(followUpBatch.items.length === 2, 'Expected planned follow-up batch rows from sample data.');
+assert(followUpBatch.items.every((item) => item.batchStatus === 'planned'), 'Expected follow-up batch to stay planned without write=true.');
+assert(followUpBatch.items.every((item) => item.resultType === 'follow_up_batch_item'), 'Expected follow-up batch item result types.');
+assert(followUpBatch.items.every((item) => item.replyDraft.includes('Madrid') && item.replyDraft.includes('+34642609188')), 'Expected rental-specific follow-up copy.');
+
 const listingOps = await runActorMode({ mode: 'listing_ops_plan' });
 assert(listingOps.items.length >= 2, 'Expected sample-backed listing ops rows.');
 assert(listingOps.items.some((item) => item.recommendedAction === 'prioritize_buyer_management'), 'Expected active demand listing action.');
@@ -52,6 +67,7 @@ assert(liveModeMissingCookieError.message.includes('missing xs'), 'Expected live
 console.log(JSON.stringify({
     replyRows: reply.items.length,
     followUpRows: followUp.items.length,
+    followUpBatchRows: followUpBatch.items.length,
     listingRows: listingOps.items.length,
     sessionAudit: audit.items[0],
     liveModeMissingCookieError: liveModeMissingCookieError.message,

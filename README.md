@@ -86,17 +86,20 @@ So the best equivalent is not "build one public Facebook Gowa clone first". It i
 
 ## Current MVP in this repo
 
-This repo ships a runnable management MVP with seven modes:
+This repo ships a runnable management MVP with eight modes:
 
 1. `conversation_inventory`
 2. `build_reply_queue`
 3. `build_follow_up_queue`
-4. `listing_ops_plan`
-5. `fetch_live_seller_threads`
-6. `send_reply`
-7. `session_audit`
+4. `send_follow_up_batch`
+5. `listing_ops_plan`
+6. `fetch_live_seller_threads`
+7. `send_reply`
+8. `session_audit`
 
 Default input uses `build_reply_queue`, and built-in sample data is enabled when relevant arrays are empty so the Actor produces deterministic non-empty output for Store QA and first-run validation. The authenticated `fetch_live_seller_threads` mode prefers the configured `facebook-marketplace-pp-cli` browser session, then falls back to browser CDP, then direct HTTP cookies. It fetches real Marketplace seller conversations and normalizes them into the same management row shape. Every management row exposes `sampleDataUsed` plus `dataOrigin`, so sample-backed QA output is visibly separated from input-derived production output.
+
+The new `send_follow_up_batch` mode sits between planning and live writes. With the default `write=false`, it ranks stale threads, generates batch-ready follow-up text, and returns `batchStatus: "planned"` rows. With `write=true`, it reuses the same write-gated reply pathway per thread and records whether each attempt was `sent` or `failed`.
 
 The write-gated `send_reply` mode calls `facebook-marketplace-pp-cli reply --write` and records either the submitted response or the exact Facebook API error. Current live proof shows the CLI reaches Facebook but the packaged `reply` mutation is rejected with `noncoercible_variable_value`, so reply writes are implemented and observable but not yet a verified-success path until the CLI mutation shape is corrected.
 
@@ -185,10 +188,21 @@ curl -sS http://localhost:3000/run \
 
 | Field | Type | Required | Description |
 |---|---|---:|---|
-| `mode` | enum | yes | `conversation_inventory`, `build_reply_queue`, `build_follow_up_queue`, `listing_ops_plan`, `fetch_live_seller_threads`, `send_reply`, or `session_audit`. |
+| `mode` | enum | yes | `conversation_inventory`, `build_reply_queue`, `build_follow_up_queue`, `send_follow_up_batch`, `listing_ops_plan`, `fetch_live_seller_threads`, `send_reply`, or `session_audit`. |
 | `useSampleData` | boolean | no | Enabled by default so empty-input QA runs still produce deterministic output. |
 | `threads` | array | for conversation modes | Conversation rows with `surface`, `threadUrl`, listing title, buyer name, last message, age, and status. |
-| `followUpDaysThreshold` | integer | for follow-up mode | Age threshold used to select stale threads for reactivation. |
+| `followUpDaysThreshold` | integer | for follow-up modes | Age threshold used to select stale threads for reactivation. |
+| `minDaysSinceLastMessage` | integer | optional for follow-up batch | Override threshold for `send_follow_up_batch`. Defaults to the follow-up threshold. |
+| `maxMessages` | integer | optional for follow-up batch | Maximum number of stale threads returned or sent in `send_follow_up_batch`. |
+| `onlyUnread` | boolean | optional for follow-up batch | Keep only stale threads that still have unread messages. |
+| `includeZeroUnread` | boolean | optional for follow-up batch | Override for the batch mode when you still want zero-unread threads included. |
+| `followUpUseCase` | enum | optional for follow-up modes | `generic` or `room_rental`. `room_rental` switches to rental-oriented follow-up copy. |
+| `area` | string | optional for rental follow-up copy | Area or city inserted into rental follow-up text. |
+| `stayWindow` | string | optional for rental follow-up copy | Stay duration wording, for example `dias o semanas`. |
+| `stayRestriction` | string | optional for rental follow-up copy | Restriction wording, for example `No meses ni estancias largas`. |
+| `availabilityText` | string | optional for rental follow-up copy | Availability wording used in rental follow-up text. |
+| `contactPhone` | string | optional for rental follow-up copy | Phone or WhatsApp number inserted into the draft. |
+| `contactChannel` | string | optional for rental follow-up copy | Contact channel label such as `WhatsApp`. |
 | `listings` | array | for listing mode | Your active listing rows with title, price, age, favorites, and status. |
 | `replyStyle` | enum | no | Tone for generated reply drafts. |
 | `replyTemplate` | string | no | Optional custom reply pattern. |
@@ -205,6 +219,7 @@ curl -sS http://localhost:3000/run \
 | `threadId` | string | for `send_reply` | Marketplace seller thread id. |
 | `listingId` | string | optional for `send_reply` | Listing id associated with the seller thread. |
 | `message` | string | for `send_reply` | Reply text passed to `facebook-marketplace-pp-cli reply --write`. |
+| `write` | boolean | optional for write-gated modes | When `false`, `send_follow_up_batch` only plans the batch. When `true`, it attempts sends programmatically. |
 
 ## Output
 
@@ -260,6 +275,29 @@ The default dataset contains management rows instead of raw scrape rows.
   "priority": "medium",
   "replyDraft": "Hola Jp Hrez, reabro el hilo por si sigues interesado en Habitacion Madrid. Han pasado 27 dias desde el ultimo mensaje y te actualizo disponibilidad si te viene bien.",
   "reason": "Thread is older than the configured 20-day follow-up threshold."
+}
+```
+
+### Follow-up batch item example
+
+```json
+{
+  "mode": "send_follow_up_batch",
+  "resultType": "follow_up_batch_item",
+  "batchIndex": 1,
+  "batchStatus": "planned",
+  "threadId": "thread-2",
+  "surface": "marketplace_seller",
+  "buyerName": "Francisco",
+  "listingTitle": "Habitacion con balcon privado",
+  "daysSinceLastMessage": 34,
+  "unreadCount": 1,
+  "recommendedAction": "send_follow_up",
+  "priority": "high",
+  "replyDraft": "Hola Francisco, te retomo por si todavia buscas habitacion. Ahora mismo tenemos habitaciones disponibles en Madrid para dias o semanas. No meses ni estancias largas. Si te encaja, escribeme por WhatsApp al +34642609188 y te confirmo.",
+  "workflowReadiness": "follow_up_batch_planned",
+  "writeAttempted": false,
+  "reason": "Batch follow-up item prepared. Pass write=true to attempt sending it programmatically."
 }
 ```
 
@@ -324,6 +362,38 @@ Example:
 
 The actor calls `facebook-marketplace-pp-cli reply --write`. If Facebook rejects the current CLI mutation, the dataset row includes `status: "failed"`, `workflowReadiness: "reply_mutation_failed"`, `apiErrorCode`, `fbtraceId`, and the raw response so the failure is actionable.
 
+### Batch follow-up mode
+
+Planning example:
+
+```json
+{
+  "mode": "send_follow_up_batch",
+  "followUpUseCase": "room_rental",
+  "area": "Madrid",
+  "stayWindow": "dias o semanas",
+  "stayRestriction": "No meses ni estancias largas",
+  "availabilityText": "Ahora mismo tenemos habitaciones disponibles",
+  "contactPhone": "+34642609188",
+  "maxMessages": 10
+}
+```
+
+Write-gated example:
+
+```json
+{
+  "mode": "send_follow_up_batch",
+  "followUpUseCase": "room_rental",
+  "area": "Madrid",
+  "contactPhone": "+34642609188",
+  "maxMessages": 10,
+  "write": true
+}
+```
+
+The batch mode uses the same `send_reply` mutation path under the hood. Plan first, then enable `write=true` only when the current auth surface has already been re-proved in the same environment.
+
 ### Crawlab-compatible runtime
 
 This repo includes [infra/crawlab/run-actor.sh](/Users/samihalawa/git/PROJECTS_MADRIDRESORTS/infra/crawlab/run-actor.sh), matching the storage pattern used by the multi-actor Crawlab repo:
@@ -362,7 +432,7 @@ The runner writes `INPUT.json`, runs `node src/main.js`, stores `OUTPUT.json`, a
 }
 ```
 
-`fetch_live_seller_threads` is the first production authenticated mode. It reads seller conversations and prepares management rows. It does not send replies or modify listings yet; those remain later browser-backed action modes.
+`fetch_live_seller_threads` is the first production authenticated mode. It reads seller conversations and prepares management rows. The repo now also supports batch follow-up planning and write-gated sends, but those still depend on current live auth proof and the same Marketplace reply mutation path.
 
 ## How much does it cost?
 

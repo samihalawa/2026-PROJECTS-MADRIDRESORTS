@@ -2,7 +2,7 @@
   "title": "Facebook Marketplace Seller Manager input",
   "type": "object",
   "schemaVersion": 1,
-  "description": "Marketplace-first management workflow for Facebook sellers. Default mode produces a non-empty reply queue without credentials. Authenticated mode can fetch live seller conversations from exported Facebook cookies. The product is intentionally not scrape-only: it models inbox operations, stale follow-ups, listing actions, and session-readiness.",
+  "description": "Marketplace-first management workflow for Facebook sellers. Default mode produces a non-empty reply queue without credentials. Authenticated mode can fetch live seller conversations from exported Facebook cookies, build stale follow-up batches, and prepare write-gated reply execution. The product is intentionally not scrape-only: it models inbox operations, stale follow-ups, listing actions, and session-readiness.",
   "properties": {
     "mode": {
       "title": "Mode",
@@ -14,6 +14,7 @@
         "conversation_inventory",
         "build_reply_queue",
         "build_follow_up_queue",
+        "send_follow_up_batch",
         "listing_ops_plan",
         "fetch_live_seller_threads",
         "send_reply",
@@ -23,6 +24,7 @@
         "Build conversation inventory",
         "Build reply queue",
         "Build stale follow-up queue",
+        "Plan or send stale follow-up batch",
         "Build listing operations plan",
         "Fetch live seller conversations",
         "Send Marketplace seller reply",
@@ -32,7 +34,7 @@
     "useSampleData": {
       "title": "Use built-in sample data when inputs are empty",
       "type": "boolean",
-      "description": "Enabled by default so Store QA and first runs always produce a deterministic non-empty output for conversation and listing modes.",
+      "description": "Enabled by default so Store QA and first runs always produce a deterministic non-empty output for conversation, follow-up batch, and listing modes.",
       "default": true
     },
     "replyStyle": {
@@ -62,7 +64,7 @@
     "threads": {
       "title": "Buyer threads",
       "type": "array",
-      "description": "Conversation rows for Marketplace, direct Messenger, or group follow-up workflows. Use this in conversation_inventory, build_reply_queue, or build_follow_up_queue mode.",
+      "description": "Conversation rows for Marketplace, direct Messenger, or group follow-up workflows. Use this in conversation_inventory, build_reply_queue, build_follow_up_queue, or send_follow_up_batch mode.",
       "editor": "json",
       "prefill": [
         {
@@ -100,9 +102,87 @@
     "followUpDaysThreshold": {
       "title": "Follow-up threshold in days",
       "type": "integer",
-      "description": "Threads older than this threshold become follow-up candidates in build_follow_up_queue mode.",
+      "description": "Threads older than this threshold become follow-up candidates in build_follow_up_queue or send_follow_up_batch mode.",
       "default": 20,
       "minimum": 1
+    },
+    "minDaysSinceLastMessage": {
+      "title": "Minimum days since last message",
+      "type": "integer",
+      "description": "Optional override used by send_follow_up_batch. Defaults to the follow-up threshold when omitted.",
+      "default": 20,
+      "minimum": 1
+    },
+    "maxMessages": {
+      "title": "Maximum batch size",
+      "type": "integer",
+      "description": "Maximum number of stale threads to include in send_follow_up_batch mode.",
+      "default": 40,
+      "minimum": 1,
+      "maximum": 200
+    },
+    "onlyUnread": {
+      "title": "Only include unread threads",
+      "type": "boolean",
+      "description": "When enabled, send_follow_up_batch keeps only stale threads with unread messages.",
+      "default": false
+    },
+    "includeZeroUnread": {
+      "title": "Include zero-unread threads even when filtering unread",
+      "type": "boolean",
+      "description": "Override for send_follow_up_batch when you still want stale threads with zero unread messages.",
+      "default": false
+    },
+    "followUpUseCase": {
+      "title": "Follow-up use case",
+      "type": "string",
+      "description": "Optional copy preset for build_follow_up_queue and send_follow_up_batch. room_rental switches to rental-oriented follow-up text.",
+      "editor": "select",
+      "default": "generic",
+      "enum": [
+        "generic",
+        "room_rental"
+      ],
+      "enumTitles": [
+        "Generic follow-up",
+        "Room rental follow-up"
+      ]
+    },
+    "area": {
+      "title": "Area",
+      "type": "string",
+      "description": "Area or city inserted into rental follow-up copy.",
+      "editor": "textfield"
+    },
+    "stayWindow": {
+      "title": "Stay window",
+      "type": "string",
+      "description": "Stay length wording inserted into rental follow-up copy, for example dias o semanas.",
+      "editor": "textfield"
+    },
+    "stayRestriction": {
+      "title": "Stay restriction",
+      "type": "string",
+      "description": "Restriction text inserted into rental follow-up copy, for example No meses ni estancias largas.",
+      "editor": "textfield"
+    },
+    "availabilityText": {
+      "title": "Availability text",
+      "type": "string",
+      "description": "Availability wording inserted into rental follow-up copy.",
+      "editor": "textfield"
+    },
+    "contactPhone": {
+      "title": "Contact phone",
+      "type": "string",
+      "description": "Optional phone or WhatsApp number inserted into rental follow-up copy.",
+      "editor": "textfield"
+    },
+    "contactChannel": {
+      "title": "Contact channel",
+      "type": "string",
+      "description": "Optional contact channel label such as WhatsApp.",
+      "editor": "textfield"
     },
     "listings": {
       "title": "Seller listings",
@@ -240,6 +320,13 @@
       "type": "string",
       "description": "Reply text sent by send_reply mode through facebook-marketplace-pp-cli reply --write.",
       "editor": "textarea",
+      "sectionCaption": "Write-gated reply workflow"
+    },
+    "write": {
+      "title": "Attempt write-gated send",
+      "type": "boolean",
+      "description": "When false, send_follow_up_batch only plans the batch. When true, it attempts programmatic reply sends for each selected thread.",
+      "default": false,
       "sectionCaption": "Write-gated reply workflow"
     }
   },

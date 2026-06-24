@@ -59,6 +59,7 @@ const server = createServer(async (req, res) => {
                     'conversation_inventory',
                     'build_reply_queue',
                     'build_follow_up_queue',
+                    'send_follow_up_batch',
                     'listing_ops_plan',
                     'fetch_live_seller_threads',
                     'send_reply',

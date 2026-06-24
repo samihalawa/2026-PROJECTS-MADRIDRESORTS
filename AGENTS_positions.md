@@ -1,11 +1,24 @@
 INDEX
+2026-06-24 | recovery/deploy drift | private report and deployment recovery can tempt a broader report-first or cookie-only rescue even after a better seller-manager proof path already exists | do keep the turn anchored to `facebook-marketplace-seller-manager`, `pp_cli` live seller threads first, and treat history exports/sample rows as seed material only | don't expand this into a generic Facebook manager, a new product surface, or a cookie-only/direct_http-first proof path | verify with live `pp_cli` seller-thread rows or the post-SSL public `/health` and `/run` proof
+2026-06-19 | remembered-account cookie shell | `c_user` and `xs` can still resolve to a remembered-account/login shell instead of a live authenticated server session | do prove the fetched HTML has nonzero `CurrentUserInitialData.USER_ID` or a real `fb_dtsg` before treating cookies as reusable auth | don't assume fresh exported cookies are valid for direct HTTP just because the page shows `Zimo Qiu` or a hidden device-based login form | verify with live seller-thread rows or successful message send
 2026-06-19 | coolify cloudflare ssl loop | public domain can self-redirect forever even when Coolify healthcheck is green if Cloudflare SSL mode stays flexible | do switch Cloudflare zone SSL to full when the origin already serves HTTPS and Coolify redirects HTTP to HTTPS | don't re-debug Node/Coolify runtime after origin HTTPS already returns the expected JSON | verify public domain returns the same JSON as direct HTTPS origin
-2026-06-19 | direct_http fresh-cookie route | exported Facebook cookies can work live without pp_cli if the request shape stays minimal | do use the repo direct_http path with the minimal Mozilla/5.0 UA and current exported cookies when pp_cli/browser auth is unavailable | don't assume direct_http is dead from older 400s or Chrome-style UA soft failures | verify with real seller-thread rows from fetch_live_seller_threads
+2026-06-19 | historical export is not live auth | historical seller-thread exports are usable campaign seed data, but they do not prove the current cookie/session still authenticates | do separate campaign-planning proof from current-auth proof and require a fresh live fetch or submitted send before claiming auth works | don't reuse README or old row dumps as evidence that today's direct_http or pp_cli auth is live | verify with current `fetch_live_seller_threads` or current `send_reply` success
 2026-06-18 | false-positive pp_cli auth proof | browser-session proof can validate with only display cookies and still fail seller-thread auth | do inspect Chrome cookie store/config for `c_user`/`xs` and compare against live Marketplace state before trusting `doctor` | don't treat `GET /marketplace/ verified` or `Authenticated` as proof of logged-in seller-thread access | verify real Facebook cookies plus successful `inbox seller-threads`
 2026-06-16 | marketplace reply writes | CLI write gate is required but current reply mutation is rejected | do use `facebook-marketplace-pp-cli reply --write` through `send_reply` and capture fbtrace | don't claim sent from dry-run, browser login, or read-thread success | verify dataset status submitted after latest write attempt
 2026-06-16 | live seller manager execution | pp-cli browser-session GraphQL is the proven first path | do run `fetch_live_seller_threads` with `liveBackend: pp_cli` when the CLI session is configured, CDP only as fallback | don't regress to cookie-only direct HTTP, standalone scripts, or CDP-only architecture | verify actor output has live rows plus pp-cli/browser proof
 2026-06-15 | facebook auth proof | prove live Chrome/CDP session before actor/product expansion | do recover or verify seller-thread access on the real Facebook tab first | don't let repo ranking, cookie presence, or README strength stand in for auth proof | verify current tab state, current cookies, current seller-threads
 2026-06-15 | store positioning | focused seller manager with internal module split | do launch one focused Actor and keep suite modular | don't launch broad facebook manager, bundle-first, or scraper clone | verify current store saturation + Apify bundle docs
+
+## 2026-06-19 | CURRENT
+
+- surface/workflow: cookie-only Facebook auth reuse in `/Users/samihalawa/git/PROJECTS_MADRIDRESORTS`
+- mistaken approach to avoid: assuming a fresh exported cookie bundle is a real server-side logged-in session just because it contains `c_user`/`xs`, shows remembered account `Zimo Qiu`, or exposes Facebook's hidden `device-based` login form
+- superior approach: read the fetched HTML literally before using the cookies. Require either a nonzero `CurrentUserInitialData.USER_ID` plus real `fb_dtsg`, or same-layer proof like live seller-thread rows / successful message send. If the HTML is a remembered-account shell, stop treating that cookie bundle as valid direct auth and ask for older working cookies or another real authenticated artifact
+- evidence: on 2026-06-19 the provided cookie set loaded `https://www.facebook.com/marketplace/` and `https://www.facebook.com/messages/t/930978993297322` with `CurrentUserInitialData {"ACCOUNT_ID":"0","USER_ID":"0"}`, empty `DTSGInitialData`, remembered-account data for `Zimo Qiu`, and hidden form action `https://www.facebook.com/login/device-based/login/caa/`; posting that hidden form returned `404 Not Found` and `Set-Cookie` deleted `c_user`, `presence`, and `xs`
+- trigger terms: `fresh cookies`, `remembered account`, `Zimo Qiu`, `device-based/login/caa`, `USER_ID 0`, `DTSGInitialData empty`
+- do: classify this as `remembered_account_shell` and keep the architecture cookie-only without pretending these particular cookies are enough
+- don't: burn time on browser/CDP fallback for this goal or claim the fresh cookie bundle is reusable auth
+- required verification before reuse: quote the HTML markers (`USER_ID`, `fb_dtsg`) and then quote either live seller-thread output or a submitted send response from the same cookie bundle
 
 ## 2026-06-19 | CURRENT
 
@@ -20,14 +33,14 @@ INDEX
 
 ## 2026-06-19 | CURRENT
 
-- surface/workflow: direct HTTP Facebook Marketplace seller-thread fetch in `/Users/samihalawa/git/PROJECTS_MADRIDRESORTS`
-- mistaken approach to avoid: treating the direct cookie-backed path as fundamentally broken because older exported sessions returned `400`, login wrappers, or Facebook `1357054` errors under the repo's previous request shape
-- superior approach: use fresh exported cookies and keep the request shape minimal for direct HTTP (`Mozilla/5.0` user agent). Let the repo fetch `fb_dtsg` from Facebook home and run the seller-thread GraphQL call from that same session before escalating to pp_cli or browser-only conclusions
-- evidence: on 2026-06-19 a fresh cookie set with `c_user=61579001435313` was saved to `/tmp/facebook-cookies-2026-06-19-fresh.json`; `runActorMode({mode:"fetch_live_seller_threads",liveBackend:"direct_http",maxPages:2})` returned `24` real `live_seller_thread` rows, including `1494259919145926` (`Eduardo Escobar`), `1509637693337627` (`Bruno Oliveira`), and `930978993297322` (`Clara Pazos`); the same repo had previously soft-failed with a Chrome-style UA until the direct HTTP headers were reduced to the accepted minimal shape
-- trigger terms: `fresh cookie`, `direct_http`, `facebook_home`, `1357054`, `400`, `Chrome UA`, `pp_cli unavailable`
-- do: prefer this direct cookie-backed path as the first no-browser fallback when a current exported cookie bundle is available
-- don't: claim the cookie route is dead from stale-cookie tests, old header shapes, or pp_cli auth confusion
-- required verification before reuse: quote a current `fetch_live_seller_threads` output row and the returned `resultCount`, not just a successful home-page token fetch
+- surface/workflow: current-auth proof versus historical seller-thread exports in `/Users/samihalawa/git/PROJECTS_MADRIDRESORTS`
+- mistaken approach to avoid: treating the old `facebook-seller-conversations-2026-06-15.*` dump, README examples, or copied thread rows as proof that the current direct_http or pp_cli auth path still works
+- superior approach: use the old export as campaign seed data only, while independently re-proving auth with a fresh same-day `fetch_live_seller_threads` result or a submitted `send_reply` response from the current runtime
+- evidence: on 2026-06-19 `/Users/samihalawa/Desktop/facebook-seller-conversations-2026-06-15.partial.json` still showed real rows with `dtsgPresent: true`, including thread `930978993297322` / `Clara Pazos` and thread `1494259919145926` / `Eduardo Escobar`; but current re-checks in the same repo returned `Facebook cookies reached a remembered-account or login shell instead of an authenticated session.`, `facebook-marketplace-pp-cli inbox seller-threads --agent --no-cache` returned `code: 1675002` / `Unauthorized logged out query.`, and both Chrome cookie stores had `0` `.facebook.com` rows
+- trigger terms: `Clara Pazos`, `Eduardo Escobar`, `historical export`, `README proof`, `remembered-account shell`, `Unauthorized logged out query`
+- do: build the 40-user follow-up batch from the historical export while keeping current auth unverified until a live fetch/send succeeds
+- don't: present the old row dump as present-tense proof that current cookies or current deployment can send messages now
+- required verification before reuse: quote a current live fetch/send response plus the batch-selection artifact separately
 
 ## 2026-06-18 | CURRENT
 

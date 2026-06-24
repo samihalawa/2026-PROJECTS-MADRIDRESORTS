@@ -111,6 +111,34 @@
         ]
       }
     },
+    "followUpBatch": {
+      "title": "Follow-up batch",
+      "transformation": {
+        "fields": [
+          "mode",
+          "resultType",
+          "batchIndex",
+          "batchStatus",
+          "threadId",
+          "surface",
+          "buyerName",
+          "listingTitle",
+          "daysSinceLastMessage",
+          "unreadCount",
+          "recommendedAction",
+          "priority",
+          "replyDraft",
+          "writeAttempted",
+          "backendUsed",
+          "workflowReadiness",
+          "apiErrorCode",
+          "fbtraceId",
+          "errorMessage",
+          "sampleDataUsed",
+          "reason"
+        ]
+      }
+    },
     "sessionAudit": {
       "title": "Session audit",
       "transformation": {
@@ -278,6 +306,18 @@
       "description": "Suggested seller reply text when generated.",
       "example": "Hola Ana, sigue disponible..."
     },
+    "batchIndex": {
+      "type": "number",
+      "title": "Batch index",
+      "description": "1-based position of the row inside a prepared or sent follow-up batch.",
+      "example": 1
+    },
+    "batchStatus": {
+      "type": "string",
+      "title": "Batch status",
+      "description": "Whether the batch item is only planned, was sent, or failed during a write attempt.",
+      "example": "planned"
+    },
     "writeAttempted": {
       "type": "boolean",
       "title": "Write attempted",
@@ -372,6 +412,12 @@
       "description": "Conservative readiness state for session-backed browser workflows.",
       "example": "needs_live_browser_verification"
     },
+    "backendUsed": {
+      "type": "string",
+      "title": "Backend used",
+      "description": "Backend that produced or attempted the live write, such as pp_cli or direct_http.",
+      "example": "pp_cli"
+    },
     "fbDtsgSource": {
       "type": "string",
       "title": "fb_dtsg source",
@@ -390,6 +436,15 @@
         "hasMarketplace": true,
         "hasZimo": true,
         "fbDtsgPresent": true
+      }
+    },
+    "rawResponse": {
+      "type": "object",
+      "title": "Raw response",
+      "description": "Raw CLI or HTTP response payload kept when a live write attempt fails.",
+      "example": {
+        "status": "failed",
+        "apiErrorCode": 1675012
       }
     }
   }

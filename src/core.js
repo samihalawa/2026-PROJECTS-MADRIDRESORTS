@@ -15,7 +15,9 @@ export const LIVE_SELLER_THREADS_WORKFLOWS = [
 ];
 
 const FACEBOOK_HOME_URL = 'https://www.facebook.com/';
+const FACEBOOK_MARKETPLACE_URL = 'https://www.facebook.com/marketplace/';
 const FACEBOOK_GRAPHQL_URL = 'https://www.facebook.com/api/graphql/';
+const FACEBOOK_MESSAGING_SEND_URL = 'https://www.facebook.com/messaging/send/';
 const SELLER_THREAD_INITIAL_DOC_ID = '26018704387747906';
 const SELLER_THREAD_PAGINATION_DOC_ID = '25940357548956156';
 const SELLER_THREAD_INITIAL_FRIENDLY_NAME = 'CometMarketplaceInboxSellerTabThreadViewContainerQuery';
@@ -126,6 +128,20 @@ function getFacebookGraphqlHeaders(cookieHeader, input = {}) {
     };
 }
 
+function getFacebookMessagingHeaders(cookieHeader, input = {}, threadId = null) {
+    return {
+        'accept': '*/*',
+        'accept-language': input.acceptLanguage || 'en-US,en;q=0.9',
+        'content-type': 'application/x-www-form-urlencoded',
+        'cookie': cookieHeader,
+        'origin': 'https://www.facebook.com',
+        'referer': threadId
+            ? `https://www.facebook.com/messages/t/${threadId}`
+            : 'https://www.facebook.com/messages/',
+        'user-agent': input.userAgent || input.directHttpUserAgent || DIRECT_HTTP_USER_AGENT,
+    };
+}
+
 function getFacebookHtmlHeaders(cookieHeader, input = {}) {
     return {
         'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
@@ -133,6 +149,10 @@ function getFacebookHtmlHeaders(cookieHeader, input = {}) {
         'cookie': cookieHeader,
         'user-agent': input.userAgent || input.directHttpUserAgent || DIRECT_HTTP_USER_AGENT,
     };
+}
+
+function getCookieValue(cookies, name) {
+    return cookies.find((cookie) => cookie?.name === name)?.value || null;
 }
 
 function extractFbDtsg(html) {
@@ -149,6 +169,96 @@ function extractFbDtsg(html) {
     }
 
     return null;
+}
+
+function extractLsd(html) {
+    const patterns = [
+        /\["LSD",\[\],\{"token":"([^"]+)"/,
+        /"LSD",\[\],\{"token":"([^"]+)"/,
+        /name="lsd"\s+value="([^"]+)"/,
+        /"token":"([^"]+)","field":"lsd"/,
+    ];
+
+    for (const pattern of patterns) {
+        const match = html.match(pattern);
+        if (match?.[1]) return match[1].replaceAll('\\/', '/');
+    }
+
+    return null;
+}
+
+function extractRevision(html) {
+    const patterns = [
+        /"client_revision":(\d+)/,
+        /"server_revision":(\d+)/,
+        /"revision":(\d+)/,
+    ];
+
+    for (const pattern of patterns) {
+        const match = html.match(pattern);
+        if (match?.[1]) return match[1];
+    }
+
+    return null;
+}
+
+function extractHtmlCurrentUserId(html) {
+    const match = html.match(/"CurrentUserInitialData",\[\],\{"ACCOUNT_ID":"([^"]*)","USER_ID":"([^"]*)"/);
+    return match?.[2] || null;
+}
+
+function buildJazoest(token) {
+    if (!token) return null;
+    let value = '2';
+    for (const char of token) {
+        value += char.charCodeAt(0);
+    }
+    return value;
+}
+
+function buildReqToken(index = 1) {
+    return Math.max(1, Number(index) || 1).toString(36);
+}
+
+function generateThreadingID(clientId = 'client') {
+    return `<${Date.now()}:${Math.floor(Math.random() * 4294967295)}-${clientId}@mail.projektitan.com>`;
+}
+
+function binaryToDecimal(binary) {
+    let remaining = binary;
+    let decimal = '';
+    while (remaining !== '0') {
+        let carry = 0;
+        let next = '';
+        for (const digit of remaining) {
+            carry = (carry * 2) + Number(digit);
+            if (carry >= 10) {
+                next += '1';
+                carry -= 10;
+            } else {
+                next += '0';
+            }
+        }
+        decimal = String(carry) + decimal;
+        remaining = next.slice(next.indexOf('1'));
+        if (!remaining) break;
+    }
+    return decimal || '0';
+}
+
+function generateOfflineThreadingId() {
+    const timestampBits = Date.now().toString(2);
+    const randomBits = (`${Math.floor(Math.random() * 4294967295).toString(2)}`).padStart(22, '0').slice(-22);
+    return binaryToDecimal(timestampBits + randomBits);
+}
+
+function generateTimestampRelative() {
+    const now = new Date();
+    return `${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}`;
+}
+
+function getSignatureId() {
+    return Math.floor(Math.random() * 2147483648).toString(16);
 }
 
 function parseFacebookJson(text) {
@@ -398,42 +508,83 @@ async function fetchFacebookContext(cookies, input) {
     const cookieHeader = cookieHeaderFromCookies(cookies);
     const providedFbDtsg = (input.fbDtsg || input.fb_dtsg || '').trim();
     if (providedFbDtsg) {
-        return { cookieHeader, fbDtsg: providedFbDtsg, fbDtsgSource: 'input' };
+        const userId = getCookieValue(cookies, 'c_user');
+        return {
+            cookieHeader,
+            fbDtsg: providedFbDtsg,
+            fbDtsgSource: 'input',
+            lsd: (input.lsd || '').trim() || null,
+            revision: (input.rev || input.__rev || '').trim() || null,
+            jazoest: (input.jazoest || '').trim() || buildJazoest(providedFbDtsg),
+            userId,
+        };
     }
 
-    const response = await fetch(FACEBOOK_HOME_URL, {
+    const response = await fetch(FACEBOOK_MARKETPLACE_URL, {
         method: 'GET',
         headers: getFacebookHtmlHeaders(cookieHeader, input),
     });
     const html = await response.text();
     const fbDtsg = extractFbDtsg(html);
+    const lsd = extractLsd(html);
+    const revision = extractRevision(html);
+    const userId = getCookieValue(cookies, 'c_user');
+    const jazoest = buildJazoest(fbDtsg);
+    const htmlUserId = extractHtmlCurrentUserId(html);
 
     if (!response.ok) {
-        throw new Error(`Facebook home request failed with HTTP ${response.status}.`);
+        throw new Error(`Facebook marketplace request failed with HTTP ${response.status}.`);
     }
     if (!fbDtsg) {
-        const hasLoginMarker = html.includes('name="email"') || html.includes('login_form') || html.includes('Log in to Facebook');
+        const hasLoginMarker = html.includes('name="email"')
+            || html.includes('login_form')
+            || html.includes('Log in to Facebook')
+            || html.includes('device-based/login/caa/')
+            || html.includes('CAAFBLoginHomepageRoot')
+            || html.includes('"USER_ID":"0"')
+            || htmlUserId === '0';
         throw new Error(hasLoginMarker
-            ? 'Facebook cookies reached the login page instead of an authenticated session.'
-            : 'Facebook home loaded but fb_dtsg token was not found.');
+            ? 'Facebook cookies reached a remembered-account or login shell instead of an authenticated session.'
+            : 'Facebook marketplace loaded but fb_dtsg token was not found.');
     }
 
-    return { cookieHeader, fbDtsg, fbDtsgSource: 'facebook_home' };
+    return {
+        cookieHeader,
+        fbDtsg,
+        fbDtsgSource: 'facebook_marketplace',
+        lsd,
+        revision,
+        jazoest,
+        userId,
+    };
 }
 
-async function facebookGraphql({ cookieHeader, fbDtsg, docId, friendlyName, variables, input }) {
+async function facebookGraphql({ context, docId, friendlyName, variables, input, requestOrdinal = 1 }) {
     const body = new URLSearchParams({
         __a: '1',
+        __req: buildReqToken(requestOrdinal),
+        __rev: context.revision || '',
+        __user: context.userId || '',
+        av: context.userId || '',
+        __ccg: 'GOOD',
+        dpr: String(input.devicePixelRatio || 1),
         fb_api_caller_class: 'RelayModern',
         fb_api_req_friendly_name: friendlyName,
         doc_id: docId,
         variables: JSON.stringify(variables),
-        fb_dtsg: fbDtsg,
+        fb_dtsg: context.fbDtsg,
+        jazoest: context.jazoest || '',
+        lsd: context.lsd || '',
+        server_timestamps: 'true',
     });
 
     const response = await fetch(FACEBOOK_GRAPHQL_URL, {
         method: 'POST',
-        headers: getFacebookGraphqlHeaders(cookieHeader, input),
+        headers: {
+            ...getFacebookGraphqlHeaders(context.cookieHeader, input),
+            ...(context.lsd ? { 'x-fb-lsd': context.lsd } : {}),
+            'x-fb-friendly-name': friendlyName,
+        },
         body,
     });
     const text = await response.text();
@@ -448,6 +599,76 @@ async function facebookGraphql({ cookieHeader, fbDtsg, docId, friendlyName, vari
         throw new Error(`Facebook GraphQL request ${friendlyName} returned error: ${firstError.message || JSON.stringify(firstError).slice(0, 240)}`);
     }
 
+    return json;
+}
+
+async function sendFacebookMessage({ context, threadId, buyerId, message, input, requestOrdinal = 1 }) {
+    const messageAndOfflineId = generateOfflineThreadingId();
+    const userId = context.userId || getCookieValue(parseCookiesJson(input.cookiesJson || '[]'), 'c_user');
+    if (!userId) {
+        throw new Error('Facebook send requires c_user in cookies.');
+    }
+
+    const form = {
+        __a: '1',
+        __req: buildReqToken(requestOrdinal),
+        __rev: context.revision || '',
+        __user: userId,
+        fb_dtsg: context.fbDtsg,
+        jazoest: context.jazoest || '',
+        client: 'mercury',
+        action_type: 'ma-type:user-generated-message',
+        author: `fbid:${userId}`,
+        timestamp: String(Date.now()),
+        timestamp_absolute: 'Today',
+        timestamp_relative: generateTimestampRelative(),
+        timestamp_time_passed: '0',
+        is_unread: 'false',
+        is_cleared: 'false',
+        is_forward: 'false',
+        is_filtered_content: 'false',
+        is_filtered_content_bh: 'false',
+        is_filtered_content_account: 'false',
+        is_filtered_content_quasar: 'false',
+        is_filtered_content_invalid_app: 'false',
+        is_spoof_warning: 'false',
+        source: 'source:chat:web',
+        'source_tags[0]': 'source:chat',
+        body: String(message),
+        html_body: 'false',
+        ui_push_phase: 'V3',
+        status: '0',
+        offline_threading_id: messageAndOfflineId,
+        message_id: messageAndOfflineId,
+        threading_id: generateThreadingID(userId),
+        manual_retry_cnt: '0',
+        has_attachment: 'false',
+        signatureID: getSignatureId(),
+        'ephemeral_ttl_mode:': '0',
+    };
+
+    if (buyerId) {
+        form['specific_to_list[0]'] = `fbid:${buyerId}`;
+        form['specific_to_list[1]'] = `fbid:${userId}`;
+        form.other_user_fbid = String(buyerId);
+    } else {
+        form.thread_fbid = String(threadId);
+    }
+
+    const response = await fetch(FACEBOOK_MESSAGING_SEND_URL, {
+        method: 'POST',
+        headers: getFacebookMessagingHeaders(context.cookieHeader, input, threadId),
+        body: new URLSearchParams(form),
+    });
+    const text = await response.text();
+    if (!response.ok) {
+        throw new Error(`Facebook messaging/send failed with HTTP ${response.status}: ${text.slice(0, 240)}`);
+    }
+    const json = parseFacebookJson(text);
+    if (json.error || json.errors?.length) {
+        const error = json.errors?.[0] || json;
+        throw new Error(`Facebook messaging/send returned error: ${error.message || JSON.stringify(error).slice(0, 240)}`);
+    }
     return json;
 }
 
@@ -614,6 +835,58 @@ function getFollowUpDraft(style, thread) {
     return renderTemplate(directTemplate, { buyerName, listingTitle, days });
 }
 
+function getRentalAvailabilityDetails(input) {
+    return {
+        propertyLabel: input.propertyLabel || input.roomLabel || 'la habitacion',
+        area: input.area || input.locationArea || input.city || 'Madrid',
+        stayWindow: input.stayWindow || input.rentalWindow || 'dias o semanas',
+        stayRestriction: input.stayRestriction || input.restrictionText || 'No meses ni estancias largas',
+        availabilityText: input.availabilityText || input.availableNowText || 'ahora mismo tenemos disponibilidad',
+        contactPhone: input.contactPhone || input.whatsappNumber || '',
+        contactChannel: input.contactChannel || (input.contactPhone ? 'WhatsApp' : ''),
+        balcony: input.hasBalcony === false ? '' : (input.balconyText || 'balcon privado'),
+        airConditioning: input.hasAirConditioning === false ? '' : (input.airConditioningText || 'aire acondicionado'),
+    };
+}
+
+function getRentalFollowUpDraft(input, thread) {
+    const details = getRentalAvailabilityDetails(input);
+    const buyerName = thread.buyerName || 'hola';
+    const listingTitle = thread.listingTitle || details.propertyLabel;
+    const days = getThreadAgeDays(thread);
+    const intent = inferBuyerIntent(thread);
+    const featureBits = [details.airConditioning, details.balcony].filter(Boolean).join(' y ');
+    const featureLine = featureBits ? ` Es una opcion con ${featureBits}.` : '';
+    const contactLine = details.contactPhone
+        ? ` Si te encaja, escribeme por ${details.contactChannel || 'WhatsApp'} al ${details.contactPhone} y te confirmo.` : ' Si te encaja, te confirmo por aqui.';
+
+    if (intent.includes('availability')) {
+        return `Hola ${buyerName}, te retomo por si todavia buscas habitacion. ${details.availabilityText} en ${details.area} para ${details.stayWindow}.${featureLine} ${details.stayRestriction}.${contactLine}`.replace(/\s+/g, ' ').trim();
+    }
+
+    if (intent.includes('pickup') || intent.includes('reactivation')) {
+        return `Hola ${buyerName}, reabro el hilo por si sigues necesitando ${listingTitle}. Ahora mismo tenemos disponibilidad en ${details.area} para ${details.stayWindow}.${featureLine} ${details.stayRestriction}.${contactLine}`.replace(/\s+/g, ' ').trim();
+    }
+
+    return `Hola ${buyerName}, han pasado ${days} dias desde el ultimo mensaje y te escribo por si todavia necesitas ${listingTitle}. ${details.availabilityText} en ${details.area} para ${details.stayWindow}.${featureLine} ${details.stayRestriction}.${contactLine}`.replace(/\s+/g, ' ').trim();
+}
+
+function shouldSkipFollowUpThread(thread, input = {}) {
+    if (input.skipClosedThreads === false) return false;
+    const message = String(thread.lastMessage || '').toLowerCase();
+    const stopMarkers = [
+        'no me interesa',
+        'ya no me interesa',
+        'no gracias',
+        'gracias no',
+        'ya consegui',
+        'ya tengo',
+        'busco otra',
+        'siga soñando',
+    ];
+    return stopMarkers.some((marker) => message.includes(marker));
+}
+
 function classifyReplyAction(thread) {
     const intent = inferBuyerIntent(thread);
     const hours = getThreadAgeHours(thread);
@@ -640,7 +913,7 @@ function withSampleData(input) {
     const enriched = { ...input };
     let sampleDataUsed = false;
 
-    if (useSampleData && ['conversation_inventory', 'build_reply_queue', 'build_follow_up_queue'].includes(mode) && (!Array.isArray(input.threads) || input.threads.length === 0)) {
+    if (useSampleData && ['conversation_inventory', 'build_reply_queue', 'build_follow_up_queue', 'send_follow_up_batch'].includes(mode) && (!Array.isArray(input.threads) || input.threads.length === 0)) {
         enriched.threads = DEFAULT_THREADS;
         sampleDataUsed = true;
     }
@@ -747,12 +1020,78 @@ function buildFollowUpQueue(input, sampleDataUsed) {
                 followUpWindowReached,
                 recommendedAction: 'send_follow_up',
                 priority: daysSinceLastMessage >= (threshold + 10) ? 'high' : 'medium',
-                replyDraft: getFollowUpDraft(style, thread),
+                replyDraft: input.followUpUseCase === 'room_rental'
+                    ? getRentalFollowUpDraft(input, thread)
+                    : getFollowUpDraft(style, thread),
                 reason: `Thread is older than the configured ${threshold}-day follow-up threshold.`,
                 sampleDataUsed,
+                unreadCount: Number(thread.unreadCount || 0),
+                listingId: thread.listingId || null,
             };
         })
         .filter(Boolean);
+}
+
+async function buildOrSendFollowUpBatch(input, sampleDataUsed) {
+    const maxMessages = clampNumber(input.maxMessages, 1, 200, 40);
+    const onlyUnread = input.onlyUnread === true;
+    const includeZeroUnread = input.includeZeroUnread === true;
+    const minDays = Number(input.minDaysSinceLastMessage || input.followUpDaysThreshold || 20);
+    const write = input.write === true || input.sendWrite === true;
+
+    const queued = buildFollowUpQueue({
+        ...input,
+        followUpDaysThreshold: minDays,
+    }, sampleDataUsed)
+        .filter((item) => !shouldSkipFollowUpThread(item, input))
+        .filter((item) => includeZeroUnread || !onlyUnread || Number(item.unreadCount || 0) > 0)
+        .sort((a, b) => {
+            const unreadDelta = Number(b.unreadCount || 0) - Number(a.unreadCount || 0);
+            if (unreadDelta !== 0) return unreadDelta;
+            return Number(b.daysSinceLastMessage || 0) - Number(a.daysSinceLastMessage || 0);
+        })
+        .slice(0, maxMessages);
+
+    if (!write) {
+        return queued.map((item, index) => ({
+            ...item,
+            mode: 'send_follow_up_batch',
+            resultType: 'follow_up_batch_item',
+            batchIndex: index + 1,
+            batchStatus: 'planned',
+            writeAttempted: false,
+            backendUsed: null,
+            workflowReadiness: 'follow_up_batch_planned',
+            reason: 'Batch follow-up item prepared. Pass write=true to attempt sending it programmatically.',
+        }));
+    }
+
+    const results = [];
+    for (const item of queued) {
+        const sendResults = await sendMarketplaceReply({
+            ...input,
+            threadId: item.threadId,
+            listingId: item.listingId,
+            message: item.replyDraft,
+        });
+        const sendResult = sendResults[0] || {};
+        results.push({
+            ...item,
+            mode: 'send_follow_up_batch',
+            resultType: 'follow_up_batch_item',
+            batchIndex: results.length + 1,
+            batchStatus: sendResult.status === 'submitted' ? 'sent' : 'failed',
+            writeAttempted: true,
+            backendUsed: sendResult.backendUsed || null,
+            workflowReadiness: sendResult.workflowReadiness || 'follow_up_batch_send_failed',
+            apiErrorCode: sendResult.apiErrorCode || null,
+            fbtraceId: sendResult.fbtraceId || null,
+            errorMessage: sendResult.errorMessage || null,
+            rawResponse: sendResult.rawResponse || null,
+        });
+    }
+
+    return results;
 }
 
 function buildListingOpsPlan(input, sampleDataUsed) {
@@ -919,9 +1258,80 @@ async function sendMarketplaceReply(input) {
     const threadId = input.threadId || input.replyThreadId;
     const message = input.message || input.replyMessage;
     const listingId = input.listingId || input.replyListingId;
+    const writeBackend = input.writeBackend || 'auto';
 
     if (!threadId || !message) {
         throw new Error('send_reply requires threadId and message.');
+    }
+
+    const cookies = parseCookiesJson(input.cookiesJson || '');
+    const { hasRequiredCookies } = getRequiredCookieState(cookies);
+
+    if ((writeBackend === 'auto' || writeBackend === 'direct_http') && hasRequiredCookies) {
+        try {
+            const context = await fetchFacebookContext(cookies, input);
+            let buyerId = input.buyerId || input.recipientId || null;
+
+            if (!buyerId) {
+                const threadRows = await fetchLiveSellerThreadsViaDirectHttp(
+                    input,
+                    cookies,
+                    clampNumber(input.sendDiscoveryMaxPages, 1, 10, 4),
+                    clampNumber(input.sendDiscoveryPageSize, 1, 20, 12),
+                    [],
+                    [],
+                );
+                buyerId = threadRows.find((row) => String(row.threadId) === String(threadId))?.buyerId || null;
+            }
+
+            const json = await sendFacebookMessage({
+                context,
+                threadId: String(threadId),
+                buyerId: buyerId ? String(buyerId) : null,
+                message: String(message),
+                input,
+            });
+
+            return [{
+                mode: 'send_reply',
+                resultType: 'reply_send_result',
+                threadId: String(threadId),
+                listingId: listingId ? String(listingId) : null,
+                buyerId: buyerId ? String(buyerId) : null,
+                replyDraft: String(message),
+                status: 'submitted',
+                priority: 'low',
+                authProofLevel: 'direct_http_cookie_send',
+                workflowReadiness: 'reply_submitted',
+                dataOrigin: 'input_payload',
+                sampleDataUsed: false,
+                writeAttempted: true,
+                backendUsed: 'direct_http',
+                rawResponse: json,
+                reason: 'Cookie-backed messaging/send accepted the reply request.',
+            }];
+        } catch (directError) {
+            if (writeBackend === 'direct_http') {
+                return [{
+                    mode: 'send_reply',
+                    resultType: 'reply_send_result',
+                    threadId: String(threadId),
+                    listingId: listingId ? String(listingId) : null,
+                    replyDraft: String(message),
+                    status: 'failed',
+                    priority: 'high',
+                    authProofLevel: 'direct_http_cookie_send',
+                    workflowReadiness: 'direct_http_send_failed',
+                    dataOrigin: 'input_payload',
+                    sampleDataUsed: false,
+                    writeAttempted: true,
+                    backendUsed: 'direct_http',
+                    errorMessage: String(directError.message || directError),
+                    reason: 'Cookie-backed messaging/send failed before a reply could be confirmed.',
+                }];
+            }
+            input.log?.warn?.(`direct_http send failed, falling back to pp_cli: ${directError.message}`);
+        }
     }
 
     const args = [
@@ -970,6 +1380,7 @@ async function sendMarketplaceReply(input) {
         dataOrigin: 'input_payload',
         sampleDataUsed: false,
         writeAttempted: true,
+        backendUsed: 'pp_cli',
         apiErrorCode: firstError?.code ?? firstError?.api_error_code ?? null,
         fbtraceId: firstError?.fbtrace_id ?? null,
         errorSummary: firstError?.summary ?? null,
@@ -1039,6 +1450,8 @@ export async function runActorMode(rawInput = {}) {
         items = buildReplyQueue(enriched, sampleDataUsed);
     } else if (mode === 'build_follow_up_queue') {
         items = buildFollowUpQueue(enriched, sampleDataUsed);
+    } else if (mode === 'send_follow_up_batch') {
+        items = await buildOrSendFollowUpBatch(enriched, sampleDataUsed);
     } else if (mode === 'listing_ops_plan') {
         items = buildListingOpsPlan(enriched, sampleDataUsed);
     } else if (mode === 'session_audit') {
